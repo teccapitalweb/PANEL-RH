@@ -462,3 +462,20 @@ tbody tr:hover { background: var(--surface-2); }
 .confirm-msg { font-size: .95rem; color: var(--text); line-height: 1.5; }
 
 @media (max-width: 540px) { .form-grid { grid-template-columns: 1fr; } .datepick__pop { width: 248px; } }
+
+/* Form: secciones, mayúsculas y campo de dinero */
+.modal { max-width: 600px; }
+.form-section {
+  grid-column: 1 / -1; font-size: .7rem; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--accent); font-weight: 600; margin-top: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-2);
+}
+.form-grid > .form-section:first-child { margin-top: 0; }
+.input.up { text-transform: uppercase; }
+.input.up::placeholder { text-transform: none; }
+.money { display: flex; align-items: center; height: 46px; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: var(--r-md); padding: 0 13px; transition: border-color .16s, box-shadow .16s; }
+.money:focus-within { border-color: var(--accent); box-shadow: var(--ring); }
+.money__sign { color: var(--muted); font-size: .95rem; margin-right: 6px; }
+.money__cur { color: var(--faint); font-size: .78rem; margin-left: 6px; }
+.input.input--money { border: none; background: transparent; height: auto; padding: 0; flex: 1; min-width: 0; box-shadow: none; }
+.input.input--money:focus { box-shadow: none; border: none; outline: none; }
