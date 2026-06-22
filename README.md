@@ -42,14 +42,21 @@ empresas/{empresaId}/eventos/{eventoId}   ← ledger inmutable (auditoría)
   - **Documentos adjuntos**: INE, CURP, contrato, comprobantes — agregar/quitar desde el expediente.
   - **Historial laboral**: línea de tiempo que registra **automáticamente** los cambios de puesto y salario con fecha.
   - **Exportar**: lista completa a **Excel (CSV)** y expediente individual a **PDF**.
+- **Fase 2 · Parte 1 — Asistencia:**
+  - **Reloj checador** tipo kiosko: hora en vivo, Entrada/Salida, selección de colaborador, validación de **geo-cerca** y **QR** de sucursal.
+  - **Turnos** configurables (entrada/salida/tolerancia) con asignación por colaborador.
+  - **Ledger inmutable**: cada checada genera un evento encadenado por hash; bitácora de auditoría que **verifica la integridad** de la cadena.
+  - **Tabla de asistencia del día** con estatus calculado contra el turno: A tiempo / Retardo (min) / Falta, respetando Vacaciones e Incidencia.
 - Dashboard con KPIs por empresa.
-- Navegación de los módulos del MVP (Asistencia, Incidencias, Vacaciones, NOM-035) como placeholders.
+- Navegación de los módulos restantes (Incidencias, Vacaciones, NOM-035) como placeholders.
 - Responsive hasta 375px (sidebar en drawer).
 
 ## Lo que NO se tocó / sigue
+- **Fase 2 pendiente**: Incidencias (faltas/permisos/incapacidades con aprobación) → Vacaciones (saldos LFT) → Calendario de ausencias.
 - Nómina (marcada "Pronto") — fase final, vía PAC con el `TimbradoProvider`.
-- Módulos en placeholder (Asistencia, Incidencias, Vacaciones, NOM-035): pendientes de construir sobre este shell.
-- Auth/datos reales: hoy en modo demo (foto y documentos viven en memoria; en producción van a Firebase Storage — ya marcado con TODO).
+- Módulos en placeholder (Incidencias, Vacaciones, NOM-035): pendientes de construir sobre este shell.
+- Auth/datos reales: hoy en modo demo. Foto y documentos viven en memoria; el QR es representativo y la geo se simula dentro del radio. En producción → Firebase (Storage, Geolocation real + haversine, eventos append-only). Todo marcado con TODO.
 
-Orden sugerido de construcción: **Asistencia → NOM-035 → Portal del colaborador → (al final) Nómina**.
+Orden sugerido: **Incidencias → Vacaciones → Calendario → NOM-035 → (al final) Nómina**.
+
 

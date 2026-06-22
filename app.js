@@ -32,6 +32,14 @@ const DATA = {
     if (this.modo === "demo") return DEMO_COLABORADORES.filter(c => c.empresaId === empresaId);
     // TODO firebase: query(collection(db,`empresas/${empresaId}/colaboradores`))
   },
+  turnos(empresaId) {
+    if (this.modo === "demo") return DEMO_TURNOS.filter(t => t.empresaId === empresaId);
+    // TODO firebase: getDocs(collection(db,`empresas/${empresaId}/turnos`))
+  },
+  asistencia(empresaId) {
+    if (this.modo === "demo") return LEDGER.eventos(empresaId);
+    // TODO firebase: query(collection(db,`empresas/${empresaId}/eventos`))
+  },
 };
 
 /* ---------- Estado ---------- */
@@ -156,6 +164,7 @@ function openSheet(id) {
   const section = (title, body) => body.trim() ? `<div class="sheet__section-title">${title}</div>${body}` : "";
   const emer = c.emergenciaNombre && c.emergenciaTel ? `${c.emergenciaNombre} · ${c.emergenciaTel}` : (c.emergenciaNombre || c.emergenciaTel || "");
   const jefe = c.jefeId ? colabById(c.jefeId) : null;
+  const turno = c.turnoId ? turnoById(c.turnoId) : null;
 
   const hist = (c.historial && c.historial.length)
     ? c.historial.slice().sort((a, b) => a.fecha < b.fecha ? 1 : -1)
@@ -201,6 +210,7 @@ function openSheet(id) {
         row(I.work, "Puesto", c.puesto) +
         row(I.bld, "Área", c.area) +
         row(I.user, "Reporta a", jefe ? jefe.nombre : "") +
+        row(I.clock, "Turno", turno ? `${turno.nombre} · ${turno.entrada}-${turno.salida}` : "") +
         row(I.cal, "Fecha de ingreso", c.ingreso ? fechaLarga(c.ingreso) : "") +
         row(I.clock, "Antigüedad", c.antiguedad) +
         row(I.doc, "Tipo de contrato", c.tipoContrato) +
@@ -366,6 +376,8 @@ function openForm(mode, id) {
   let fotoData = c ? (c.foto || "") : "";
   const jefeOpts = [{ v: "", label: "— Sin jefe directo —" }]
     .concat(DATA.colaboradores(state.empresa.id).filter(o => o.id !== id).map(o => ({ v: o.id, label: o.nombre })));
+  const turnoOpts = [{ v: "", label: "— Sin turno —" }]
+    .concat(DATA.turnos(state.empresa.id).map(t => ({ v: t.id, label: `${t.nombre} (${t.entrada}-${t.salida})` })));
   $$(".modal-overlay").forEach(o => o.remove()); // un solo modal a la vez (sin IDs duplicados)
   const ov = document.createElement("div");
   ov.className = "modal-overlay";
@@ -406,6 +418,7 @@ function openForm(mode, id) {
           <div class="field"><label class="field__label">Puesto *</label><input class="input" id="f-puesto" value="${v("puesto")}" placeholder="Ej. Desarrollador" /></div>
           <div class="field"><label class="field__label">Área</label>${selectHTML("area", v("area") || AREAS[0], AREAS)}</div>
           <div class="field"><label class="field__label">Reporta a</label>${selectHTML("jefe", v("jefeId") || "", jefeOpts)}</div>
+          <div class="field"><label class="field__label">Turno</label>${selectHTML("turno", v("turnoId") || "", turnoOpts)}</div>
           <div class="field"><label class="field__label">Fecha de ingreso *</label>${datepickHTML("ingreso", v("ingreso") || "")}</div>
           <div class="field"><label class="field__label">Tipo de contrato</label>${selectHTML("contrato", v("tipoContrato") || CONTRATOS[0], CONTRATOS)}</div>
           <div class="field"><label class="field__label">Jornada</label>${selectHTML("jornada", v("jornada") || JORNADAS[0], JORNADAS)}</div>
@@ -469,6 +482,7 @@ function openForm(mode, id) {
       salario: Number(($("#f-salario", ov).value || "").replace(/[^\d]/g, "")) || "",
       estatus: $(".select[data-name='estatus']", ov).dataset.value,
       jefeId: $(".select[data-name='jefe']", ov).dataset.value,
+      turnoId: $(".select[data-name='turno']", ov).dataset.value,
       foto: fotoData,
       antiguedad: calcAntiguedad(ingreso),
     };
@@ -607,11 +621,12 @@ function openDocModal(id) {
 function exportarCSV() {
   let list = DATA.colaboradores(state.empresa.id);
   if (state.filtro !== "Todos") list = list.filter(c => c.estatus === state.filtro);
-  const cols = ["Nombre", "Puesto", "Área", "Estatus", "CURP", "RFC", "NSS", "Nacimiento", "Género", "Estado civil", "Correo", "Teléfono", "Domicilio", "Ingreso", "Antigüedad", "Tipo de contrato", "Jornada", "Salario", "Reporta a", "Emergencia", "Tel. emergencia"];
+  const cols = ["Nombre", "Puesto", "Área", "Estatus", "CURP", "RFC", "NSS", "Nacimiento", "Género", "Estado civil", "Correo", "Teléfono", "Domicilio", "Ingreso", "Antigüedad", "Tipo de contrato", "Jornada", "Salario", "Turno", "Reporta a", "Emergencia", "Tel. emergencia"];
   const esc = v => { v = (v === undefined || v === null) ? "" : String(v); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
   const filas = list.map(c => {
     const jefe = c.jefeId ? colabById(c.jefeId) : null;
-    return [c.nombre, c.puesto, c.area, c.estatus, c.curp, c.rfc, c.nss, c.nacimiento, c.genero, c.estadoCivil, c.email, c.tel, c.domicilio, c.ingreso, c.antiguedad, c.tipoContrato, c.jornada, c.salario, jefe ? jefe.nombre : "", c.emergenciaNombre, c.emergenciaTel].map(esc).join(",");
+    const turno = c.turnoId ? turnoById(c.turnoId) : null;
+    return [c.nombre, c.puesto, c.area, c.estatus, c.curp, c.rfc, c.nss, c.nacimiento, c.genero, c.estadoCivil, c.email, c.tel, c.domicilio, c.ingreso, c.antiguedad, c.tipoContrato, c.jornada, c.salario, turno ? turno.nombre : "", jefe ? jefe.nombre : "", c.emergenciaNombre, c.emergenciaTel].map(esc).join(",");
   });
   const csv = "\uFEFF" + [cols.join(","), ...filas].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -653,9 +668,283 @@ function toast(msg) {
   setTimeout(() => { t.classList.remove("is-on"); setTimeout(() => t.remove(), 300); }, 2600);
 }
 
+/* =====================================================================
+   FASE 2 — Asistencia: ledger inmutable, turnos, checador
+   ===================================================================== */
+
+/* Hash encadenado (demo, determinista — para auditar la cadena) */
+function hashStr(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
+
+/* Ledger append-only por empresa (cadena de hashes).
+   Producción: empresas/{id}/eventos con reglas que prohíben update/delete. */
+const LEDGER = {
+  _chain: [],
+  _seq: 0,
+  init() {
+    this._chain = []; this._seq = 0;
+    DEMO_ASISTENCIA_SEED.forEach(s => this._push(s.empresaId, s.colaboradorId, s.tipo, { ok: true, dist: 20 }, `${hoyISO()}T${s.hora}:00`));
+  },
+  _push(empresaId, colaboradorId, tipo, geo, ts) {
+    const prev = [...this._chain].reverse().find(e => e.empresaId === empresaId);
+    const prevHash = prev ? prev.hash : "0".repeat(8);
+    const id = "ev" + (++this._seq);
+    const hash = hashStr(prevHash + empresaId + colaboradorId + tipo + ts);
+    this._chain.push({ id, empresaId, colaboradorId, tipo, ts, geo, prevHash, hash });
+    return this._chain[this._chain.length - 1];
+  },
+  registrar(empresaId, colaboradorId, tipo, geo) {
+    const ev = this._push(empresaId, colaboradorId, tipo, geo, new Date().toISOString());
+    // TODO firebase: addDoc(collection(db,`empresas/${empresaId}/eventos`), ev)  ← append-only
+    return ev;
+  },
+  eventos(empresaId) { return this._chain.filter(e => e.empresaId === empresaId); },
+  hoy(empresaId) { const h = hoyISO(); return this.eventos(empresaId).filter(e => e.ts.slice(0, 10) === h); },
+  verificar(empresaId) {
+    const evs = this.eventos(empresaId);
+    let prevHash = "0".repeat(8);
+    for (const e of evs) {
+      if (e.prevHash !== prevHash) return { ok: false, en: e.id };
+      if (e.hash !== hashStr(prevHash + e.empresaId + e.colaboradorId + e.tipo + e.ts)) return { ok: false, en: e.id };
+      prevHash = e.hash;
+    }
+    return { ok: true, total: evs.length };
+  },
+};
+
+/* Helpers de asistencia */
+const turnoById = id => DEMO_TURNOS.find(t => t.id === id);
+const toMin = hhmm => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+const horaMin = ts => { const d = new Date(ts); return d.getHours() * 60 + d.getMinutes(); };
+const horaTxt = ts => { const d = new Date(ts); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+const horaActual = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+
+function evaluarAsistencia(c, eventos) {
+  if (c.estatus === "Vacaciones") return { clase: "vac", txt: "Vacaciones", entrada: "—", salida: "—" };
+  if (c.estatus === "Incidencia") return { clase: "inc", txt: "Incidencia", entrada: "—", salida: "—" };
+  const evs = eventos.filter(e => e.colaboradorId === c.id);
+  const entrada = evs.filter(e => e.tipo === "entrada").sort((a, b) => a.ts < b.ts ? -1 : 1)[0];
+  const salidas = evs.filter(e => e.tipo === "salida").sort((a, b) => a.ts < b.ts ? -1 : 1);
+  const salida = salidas[salidas.length - 1];
+  if (!entrada) return { clase: "falta", txt: "Falta", entrada: "—", salida: "—" };
+  const turno = turnoById(c.turnoId);
+  let est = { clase: "ok", txt: "A tiempo" };
+  if (turno) {
+    const retraso = horaMin(entrada.ts) - toMin(turno.entrada);
+    if (retraso > (turno.tolerancia || 0)) est = { clase: "ret", txt: `Retardo ${retraso} min` };
+  }
+  return { ...est, entrada: horaTxt(entrada.ts), salida: salida ? horaTxt(salida.ts) : "—" };
+}
+
+/* Geo-cerca (demo simula dentro del radio; producción: navigator.geolocation + haversine) */
+function validarGeo(empresa) {
+  const radio = (empresa.geo && empresa.geo.radio) || 60;
+  const dist = Math.floor(12 + Math.random() * (radio - 18));
+  return { ok: dist <= radio, dist };
+}
+
+/* Reloj en vivo */
+let _clockTimer = null;
+function tickReloj() {
+  const el = $("#checadorClock"); if (!el) return;
+  const d = new Date();
+  el.textContent = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+}
+
+/* QR de sucursal (representativo en demo; en producción encodea el token de check-in) */
+function qrSVG(seed) {
+  const N = 25, cell = 7, pad = 14, size = N * cell + pad * 2;
+  let s = 0; for (let i = 0; i < seed.length; i++) s = (s * 31 + seed.charCodeAt(i)) >>> 0;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  const finder = (gx, gy) => `M${pad + gx * cell} ${pad + gy * cell} h${cell * 7} v${cell * 7} h${-cell * 7} z M${pad + (gx + 1) * cell} ${pad + (gy + 1) * cell} h${cell * 5} v${cell * 5} h${-cell * 5} z M${pad + (gx + 2) * cell} ${pad + (gy + 2) * cell} h${cell * 3} v${cell * 3} h${-cell * 3} z`;
+  const inFinder = (x, y) => (x < 8 && y < 8) || (x >= N - 8 && y < 8) || (x < 8 && y >= N - 8);
+  let mods = "";
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    if (inFinder(x, y)) continue;
+    if (rnd() > 0.55) mods += `<rect x="${pad + x * cell}" y="${pad + y * cell}" width="${cell}" height="${cell}"/>`;
+  }
+  return `<svg viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg" class="qr-svg">
+    <rect width="${size}" height="${size}" rx="14" fill="#ffffff"/>
+    <g fill="#0b1020">${mods}
+      <path fill-rule="evenodd" d="${finder(0, 0)}"/>
+      <path fill-rule="evenodd" d="${finder(N - 7, 0)}"/>
+      <path fill-rule="evenodd" d="${finder(0, N - 7)}"/>
+    </g>
+  </svg>`;
+}
+
+/* Render principal de Asistencia */
+function renderAsistencia() {
+  if (_clockTimer) { clearInterval(_clockTimer); _clockTimer = null; }
+  const emp = state.empresa;
+  const cols = DATA.colaboradores(emp.id);
+  const turnos = DATA.turnos(emp.id);
+  const checaOpts = cols.map(c => ({ v: c.id, label: c.nombre }));
+
+  const turnoCards = turnos.length
+    ? `<div class="turno-grid">${turnos.map(t => `
+        <div class="turno-card">
+          <div class="turno-card__name">${t.nombre}</div>
+          <div class="turno-card__time">${t.entrada} – ${t.salida}</div>
+          <div class="turno-card__tol">Tolerancia ${t.tolerancia} min · ${cols.filter(c => c.turnoId === t.id).length} colaborador(es)</div>
+        </div>`).join("")}</div>`
+    : `<p class="muted-empty">Sin turnos. Crea el primero.</p>`;
+
+  $("#view-asistencia").innerHTML = `
+    <div class="page-head"><h1>Asistencia</h1><p>Checador, turnos y bitácora inmutable de ${emp.nombre}.</p></div>
+    <div class="asist-top">
+      <div class="card checador">
+        <div class="checador__head">
+          <span class="checador__date">${fechaLarga(hoyISO())}</span>
+          <span class="geo-chip is-ok" id="geoChip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${emp.geo ? emp.geo.sucursal : "Sucursal"}</span>
+        </div>
+        <div class="checador__clock" id="checadorClock">--:--:--</div>
+        <label class="field__label">Colaborador</label>
+        ${selectHTML("checaColab", checaOpts.length ? checaOpts[0].v : "", checaOpts.length ? checaOpts : [{ v: "", label: "Sin colaboradores" }])}
+        <div class="checador__btns">
+          <button class="btn check-in" id="btnEntrada"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5M15 12H3"/></svg>Entrada</button>
+          <button class="btn check-out" id="btnSalida"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>Salida</button>
+        </div>
+      </div>
+      <div class="card qr-card">
+        <div class="qr-wrap">${qrSVG(emp.id + hoyISO())}</div>
+        <div class="qr-card__title">QR de la sucursal</div>
+        <div class="qr-card__sub">Escanéalo desde la app del colaborador para checar.</div>
+      </div>
+    </div>
+    <div class="section-head" style="margin-top:26px"><h2>Asistencia de hoy</h2></div>
+    <div class="card"><div class="table-wrap" id="asistTablaWrap"></div></div>
+    <div class="asist-bottom">
+      <div>
+        <div class="section-head"><h2>Turnos</h2><button class="chip" id="btnNuevoTurno" style="background:var(--surface);box-shadow:var(--shadow)">+ Nuevo turno</button></div>
+        ${turnoCards}
+      </div>
+      <div>
+        <div class="section-head"><h2>Bitácora · ledger inmutable</h2></div>
+        <div class="card" id="bitacoraWrap"></div>
+      </div>
+    </div>`;
+
+  renderAsistTabla();
+  renderBitacora();
+  tickReloj();
+  _clockTimer = setInterval(tickReloj, 1000);
+  bindSelect($("#view-asistencia"));
+  $("#btnEntrada").addEventListener("click", () => checar("entrada"));
+  $("#btnSalida").addEventListener("click", () => checar("salida"));
+  $("#btnNuevoTurno").addEventListener("click", openTurnoModal);
+}
+
+function renderAsistTabla() {
+  const emp = state.empresa;
+  const cols = DATA.colaboradores(emp.id);
+  const evs = LEDGER.hoy(emp.id);
+  const rows = cols.map(c => {
+    const a = evaluarAsistencia(c, evs);
+    const turno = turnoById(c.turnoId);
+    return `<tr>
+      <td>${personCell(c)}</td>
+      <td>${turno ? `${turno.nombre} · ${turno.entrada}-${turno.salida}` : "—"}</td>
+      <td>${a.entrada}</td>
+      <td>${a.salida}</td>
+      <td><span class="badge badge--${a.clase}">${a.txt}</span></td>
+    </tr>`;
+  }).join("");
+  $("#asistTablaWrap").innerHTML = `<table>
+    <thead><tr><th>Colaborador</th><th>Turno</th><th>Entrada</th><th>Salida</th><th>Estatus</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+function renderBitacora() {
+  const emp = state.empresa;
+  const evs = [...LEDGER.hoy(emp.id)].reverse().slice(0, 10);
+  const ver = LEDGER.verificar(emp.id);
+  const items = evs.length ? evs.map(e => {
+    const c = colabById(e.colaboradorId);
+    return `<div class="ledger-row">
+      <span class="ledger-row__dot ledger-row__dot--${e.tipo}"></span>
+      <div class="ledger-row__meta">
+        <div class="ledger-row__main">${c ? c.nombre.split(" ").slice(0, 2).join(" ") : e.colaboradorId} · <span class="ledger-row__tipo">${e.tipo}</span></div>
+        <div class="ledger-row__sub">${horaTxt(e.ts)} · <span class="mono">#${e.hash}</span></div>
+      </div>
+    </div>`;
+  }).join("") : `<p class="muted-empty">Sin eventos hoy.</p>`;
+  $("#bitacoraWrap").innerHTML = `
+    <div class="ledger-status ${ver.ok ? "is-ok" : "is-bad"}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ver.ok ? '<path d="M20 6 9 17l-5-5"/>' : '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/>'}</svg>
+      ${ver.ok ? `Cadena íntegra · ${ver.total} eventos` : `Cadena alterada en ${ver.en}`}
+    </div>
+    <div class="ledger-list">${items}</div>`;
+}
+
+function checar(tipo) {
+  const sel = $(".select[data-name='checaColab']");
+  const colId = sel ? sel.dataset.value : "";
+  const c = colabById(colId);
+  if (!c) { toast("Selecciona un colaborador."); return; }
+  const geo = validarGeo(state.empresa);
+  const chip = $("#geoChip");
+  if (chip) { chip.classList.toggle("is-bad", !geo.ok); chip.classList.toggle("is-ok", geo.ok); }
+  if (!geo.ok) { toast(`Fuera de rango (${geo.dist} m). No se registró.`); return; }
+  LEDGER.registrar(state.empresa.id, colId, tipo, geo);
+  renderAsistTabla();
+  renderBitacora();
+  toast(`${tipo === "entrada" ? "Entrada" : "Salida"} registrada · ${c.nombre.split(" ")[0]} · ${horaActual()} · ${geo.dist} m`);
+}
+
+/* Modal nuevo turno */
+function openTurnoModal() {
+  $$(".modal-overlay").forEach(o => o.remove());
+  const horas = [];
+  for (let h = 6; h <= 23; h++) for (const m of ["00", "30"]) horas.push(`${String(h).padStart(2, "0")}:${m}`);
+  const horaOpts = horas.map(h => ({ v: h, label: h }));
+  const tolOpts = [5, 10, 15, 20, 30].map(t => ({ v: String(t), label: `${t} min` }));
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  ov.innerHTML = `
+    <div class="modal modal--sm" role="dialog" aria-modal="true" style="text-align:left">
+      <div class="modal__head"><h3>Nuevo turno</h3>
+        <button class="icon-btn" id="tmClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="modal__body">
+        <div class="field"><label class="field__label">Nombre del turno *</label><input class="input" id="tm-nombre" placeholder="Ej. Matutino" /></div>
+        <div class="form-grid" style="margin-top:12px">
+          <div class="field"><label class="field__label">Entrada</label>${selectHTML("tmEntrada", "09:00", horaOpts)}</div>
+          <div class="field"><label class="field__label">Salida</label>${selectHTML("tmSalida", "18:00", horaOpts)}</div>
+          <div class="field"><label class="field__label">Tolerancia</label>${selectHTML("tmTol", "10", tolOpts)}</div>
+        </div>
+        <p class="form-error" id="tmError"></p>
+      </div>
+      <div class="modal__foot"><button class="btn btn--ghost" id="tmCancel">Cancelar</button><button class="btn btn--primary" id="tmSave">Crear turno</button></div>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add("is-on"));
+  bindSelect(ov);
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#tmClose", ov).addEventListener("click", close);
+  $("#tmCancel", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  $("#tmSave", ov).addEventListener("click", () => {
+    const nombre = $("#tm-nombre", ov).value.trim();
+    if (!nombre) { $("#tmError", ov).textContent = "Ponle nombre al turno."; return; }
+    DEMO_TURNOS.push({
+      id: "t-" + Date.now(), empresaId: state.empresa.id, nombre,
+      entrada: $(".select[data-name='tmEntrada']", ov).dataset.value,
+      salida: $(".select[data-name='tmSalida']", ov).dataset.value,
+      tolerancia: Number($(".select[data-name='tmTol']", ov).dataset.value),
+    });
+    // TODO firebase: addDoc(collection(db,`empresas/${state.empresa.id}/turnos`), turno)
+    close();
+    renderAsistencia();
+    toast("Turno creado.");
+  });
+}
+
 /* ---------- Placeholders de módulos ---------- */
 const MODS = {
-  asistencia:  ["Asistencia", "Reloj checador con QR y geo-cerca, turnos y tolerancia configurable. Recicla el check-in del member app de Gymvexa.", `<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>`],
   incidencias: ["Incidencias", "Faltas, retardos, permisos e incapacidades con flujo de aprobación sobre el ledger inmutable.", `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/>`],
   vacaciones:  ["Vacaciones", "Saldos conforme a la LFT, solicitudes y aprobaciones con trazabilidad.", `<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>`],
   nom035:      ["NOM-035", "Cuestionarios oficiales, aplicación, resultados y evidencia descargable. Tu diferenciador de cumplimiento — el know-how ya está en tus consultoras.", `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>`],
@@ -673,12 +962,14 @@ function renderPlaceholder(view) {
 
 /* ---------- Navegación ---------- */
 function go(view) {
+  if (_clockTimer && view !== "asistencia") { clearInterval(_clockTimer); _clockTimer = null; }
   $$(".view").forEach(v => v.classList.remove("is-on"));
   $(`#view-${view}`)?.classList.add("is-on");
   $$(".nav-item").forEach(n => n.classList.toggle("is-active", n.dataset.view === view));
   if (view === "dashboard") { renderKpis(); renderRecent(); }
   if (view === "colaboradores") renderColab();
   if (view === "organigrama") renderOrganigrama();
+  if (view === "asistencia") renderAsistencia();
   if (MODS[view]) renderPlaceholder(view);
   $("#sidebar").classList.remove("is-open");
   $("#scrim").classList.remove("is-on");
@@ -717,6 +1008,7 @@ function applyTheme(t) {
 function bootApp() {
   $("#login").style.display = "none";
   $("#app").classList.add("is-on");
+  LEDGER.init();
   renderEmpresaMenu();
   go("dashboard");
 }

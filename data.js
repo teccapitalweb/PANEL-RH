@@ -94,3 +94,45 @@ _h("c009", [
 ]);
 
 const DEMO_TIPOS_INCIDENCIA = ["Falta", "Retardo", "Permiso con goce", "Permiso sin goce", "Incapacidad", "Vacaciones"];
+
+/* =====================================================================
+   FASE 2 — Asistencia: turnos, geo de sucursal y ledger semilla
+   ===================================================================== */
+
+/* Geo de sucursal por empresa (para la geo-cerca del checador) */
+DEMO_EMPRESAS.find(e => e.id === "tec-capital").geo = { lat: 18.4621, lng: -97.3928, radio: 60, sucursal: "Matriz Tehuacán" };
+DEMO_EMPRESAS.find(e => e.id === "dermalysse").geo  = { lat: 18.4589, lng: -97.4012, radio: 50, sucursal: "Clínica Centro" };
+DEMO_EMPRESAS.find(e => e.id === "fisioteck").geo   = { lat: 18.4655, lng: -97.3880, radio: 50, sucursal: "Sucursal Tecnológico" };
+
+/* Turnos por empresa */
+const DEMO_TURNOS = [
+  { id: "t-tec-mat",  empresaId: "tec-capital", nombre: "Matutino",   entrada: "09:00", salida: "18:00", tolerancia: 10 },
+  { id: "t-tec-vesp", empresaId: "tec-capital", nombre: "Vespertino", entrada: "14:00", salida: "22:00", tolerancia: 10 },
+  { id: "t-der",      empresaId: "dermalysse",  nombre: "Clínica",    entrada: "09:00", salida: "18:00", tolerancia: 15 },
+  { id: "t-fis-am",   empresaId: "fisioteck",   nombre: "Clínica AM", entrada: "08:00", salida: "16:00", tolerancia: 15 },
+  { id: "t-fis-pm",   empresaId: "fisioteck",   nombre: "Clínica PM", entrada: "14:00", salida: "21:00", tolerancia: 15 },
+];
+
+/* Asignación de turno por colaborador */
+const _turno = (ids, tId) => ids.forEach(id => { const c = DEMO_COLABORADORES.find(x => x.id === id); if (c) c.turnoId = tId; });
+_turno(["c001", "c002", "c003", "c004", "c006"], "t-tec-mat");
+_turno(["c005"], "t-tec-vesp");
+_turno(["c007", "c008"], "t-der");
+_turno(["c009"], "t-fis-am");
+_turno(["c010"], "t-fis-pm");
+
+/* Eventos de asistencia de HOY (semilla cruda; app.js arma la cadena con hashes).
+   hora en formato HH:MM; el ledger les pone el timestamp de hoy al arrancar. */
+const DEMO_ASISTENCIA_SEED = [
+  { empresaId: "tec-capital", colaboradorId: "c004", tipo: "entrada", hora: "08:45" },
+  { empresaId: "tec-capital", colaboradorId: "c001", tipo: "entrada", hora: "08:58" },
+  { empresaId: "tec-capital", colaboradorId: "c002", tipo: "entrada", hora: "09:02" },
+  { empresaId: "tec-capital", colaboradorId: "c003", tipo: "entrada", hora: "09:18" },
+  { empresaId: "tec-capital", colaboradorId: "c004", tipo: "salida",  hora: "16:10" },
+  { empresaId: "tec-capital", colaboradorId: "c001", tipo: "salida",  hora: "18:05" },
+  { empresaId: "dermalysse",  colaboradorId: "c007", tipo: "entrada", hora: "09:00" },
+  { empresaId: "dermalysse",  colaboradorId: "c008", tipo: "entrada", hora: "09:25" },
+  { empresaId: "dermalysse",  colaboradorId: "c007", tipo: "salida",  hora: "18:00" },
+  { empresaId: "fisioteck",   colaboradorId: "c009", tipo: "entrada", hora: "08:00" },
+  { empresaId: "fisioteck",   colaboradorId: "c009", tipo: "salida",  hora: "16:00" },
+];
