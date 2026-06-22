@@ -173,6 +173,10 @@
               <button class="chip" data-f="Incidencia">Incidencias</button>
             </div>
             <div class="topbar__spacer"></div>
+            <button class="btn btn--ghost btn--sm" id="exportBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+              Exportar Excel
+            </button>
             <button class="btn btn--primary btn--sm" id="newColabBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
               Nuevo colaborador
@@ -196,6 +200,7 @@
   <div class="overlay" id="overlay"></div>
   <aside class="sheet" id="sheet"></aside>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="firebase-config.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>

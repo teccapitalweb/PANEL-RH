@@ -49,6 +49,9 @@ function fechaLarga(iso) {
   return `${d} ${MESES[m - 1]} ${y}`;
 }
 const dineroMX = n => (n && Number(n) > 0) ? "$" + Number(n).toLocaleString("es-MX") + " MXN" : "";
+const avatarInner = c => (c && c.foto) ? `<img src="${c.foto}" alt="">` : initials(c && c.nombre ? c.nombre : "?");
+const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const colabById = id => DEMO_COLABORADORES.find(c => c.id === id);
 
 function badge(estatus) {
   const map = {
@@ -62,7 +65,7 @@ function badge(estatus) {
 
 function personCell(c) {
   return `<div class="cell-person">
-            <div class="avatar">${initials(c.nombre)}</div>
+            <div class="avatar">${avatarInner(c)}</div>
             <div><div class="cell-person__name">${c.nombre}</div>
                  <div class="cell-person__sub">${c.email}</div></div>
           </div>`;
@@ -152,9 +155,33 @@ function openSheet(id) {
       <span class="detail-row__v">${v}</span></div>` : "";
   const section = (title, body) => body.trim() ? `<div class="sheet__section-title">${title}</div>${body}` : "";
   const emer = c.emergenciaNombre && c.emergenciaTel ? `${c.emergenciaNombre} · ${c.emergenciaTel}` : (c.emergenciaNombre || c.emergenciaTel || "");
+  const jefe = c.jefeId ? colabById(c.jefeId) : null;
+
+  const hist = (c.historial && c.historial.length)
+    ? c.historial.slice().sort((a, b) => a.fecha < b.fecha ? 1 : -1)
+    : [{ fecha: c.ingreso, tipo: "Alta", detalle: "Ingreso a la empresa" }];
+  const histCls = t => t === "Salario" ? "money" : (t === "Alta" ? "alta" : "job");
+  const histHTML = `<div class="timeline">${hist.map(h => `
+      <div class="tl-item tl-item--${histCls(h.tipo)}">
+        <div class="tl-top"><span class="tl-tipo">${h.tipo}</span><span class="tl-fecha">${fechaLarga(h.fecha)}</span></div>
+        <div class="tl-detalle">${h.detalle}</div>
+      </div>`).join("")}</div>`;
+
+  const docs = c.documentos || [];
+  const docIco = `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>`;
+  const docsHTML = (docs.length
+      ? `<div class="doc-list">${docs.map((d, i) => `
+          <div class="doc-item">
+            <div class="doc-item__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${docIco}</svg></div>
+            <div class="doc-item__meta"><div class="doc-item__name">${d.nombre}</div><div class="doc-item__sub">${d.tipo} · ${fechaLarga(d.fecha)}</div></div>
+            <button class="doc-item__del" data-doc="${i}" title="Quitar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+          </div>`).join("")}</div>`
+      : `<p class="muted-empty">Sin documentos. Agrega INE, CURP, contrato, etc.</p>`)
+    + `<button class="btn btn--ghost btn--sm" id="docAdd" style="width:100%;margin-top:10px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Agregar documento</button>`;
+
   $("#sheet").innerHTML = `
     <div class="sheet__head">
-      <div class="avatar">${initials(c.nombre)}</div>
+      <div class="avatar">${avatarInner(c)}</div>
       <div><div class="sheet__name">${c.nombre}</div><div class="sheet__role">${c.puesto} · ${c.area}</div></div>
       <button class="icon-btn sheet__close" id="sheetClose" aria-label="Cerrar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
@@ -173,6 +200,7 @@ function openSheet(id) {
       ${section("Datos laborales",
         row(I.work, "Puesto", c.puesto) +
         row(I.bld, "Área", c.area) +
+        row(I.user, "Reporta a", jefe ? jefe.nombre : "") +
         row(I.cal, "Fecha de ingreso", c.ingreso ? fechaLarga(c.ingreso) : "") +
         row(I.clock, "Antigüedad", c.antiguedad) +
         row(I.doc, "Tipo de contrato", c.tipoContrato) +
@@ -185,18 +213,31 @@ function openSheet(id) {
         row(I.pin, "Domicilio", c.domicilio) +
         row(I.alert, "Emergencia", emer)
       )}
+      <div class="sheet__section-title">Historial laboral</div>
+      ${histHTML}
+      <div class="sheet__section-title">Documentos</div>
+      ${docsHTML}
     </div>
     <div class="sheet__foot">
       <button class="btn btn--ghost" id="sheetDelete" style="flex:none;width:46px;padding:0" title="Eliminar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_TRASH}</svg>
       </button>
-      <button class="btn btn--primary" id="sheetEdit" style="flex:1">Editar colaborador</button>
+      <button class="btn btn--ghost" id="sheetPdf" style="flex:none;width:46px;padding:0" title="Exportar a PDF">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+      </button>
+      <button class="btn btn--primary" id="sheetEdit" style="flex:1">Editar</button>
     </div>`;
   $("#sheet").classList.add("is-on");
   $("#overlay").classList.add("is-on");
   $("#sheetClose").addEventListener("click", closeSheet);
   $("#sheetEdit").addEventListener("click", () => { closeSheet(); openForm("edit", id); });
   $("#sheetDelete").addEventListener("click", () => deleteColab(id));
+  $("#sheetPdf").addEventListener("click", () => exportarPDF(id));
+  $("#docAdd")?.addEventListener("click", () => openDocModal(id));
+  $$("#sheet .doc-item__del").forEach(b => b.addEventListener("click", () => {
+    (c.documentos || []).splice(Number(b.dataset.doc), 1);
+    openSheet(id);
+  }));
 }
 function closeSheet() {
   $("#sheet").classList.remove("is-on");
@@ -230,13 +271,15 @@ function calcAntiguedad(iso) {
 
 /* ---- Custom select (glass) ---- */
 function selectHTML(name, value, opts) {
-  return `<div class="select" data-name="${name}" data-value="${value}">
+  const norm = opts.map(o => typeof o === "string" ? { v: o, label: o } : o);
+  const cur = norm.find(o => o.v === value) || norm[0];
+  return `<div class="select" data-name="${name}" data-value="${cur.v}">
     <button type="button" class="select__btn">
-      <span class="select__val">${value}</span>
+      <span class="select__val">${cur.label}</span>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
     </button>
     <div class="select__menu">
-      ${opts.map(o => `<button type="button" class="select__opt ${o === value ? "is-sel" : ""}" data-v="${o}">${o}</button>`).join("")}
+      ${norm.map(o => `<button type="button" class="select__opt ${o.v === cur.v ? "is-sel" : ""}" data-v="${o.v}">${o.label}</button>`).join("")}
     </div>
   </div>`;
 }
@@ -250,7 +293,7 @@ function bindSelect(root) {
     });
     $$(".select__opt", sel).forEach(opt => opt.addEventListener("click", () => {
       sel.dataset.value = opt.dataset.v;
-      $(".select__val", sel).textContent = opt.dataset.v;
+      $(".select__val", sel).textContent = opt.textContent;
       $$(".select__opt", sel).forEach(o => o.classList.toggle("is-sel", o === opt));
       sel.classList.remove("is-open");
     }));
@@ -320,6 +363,9 @@ function bindDatepick(root) {
 function openForm(mode, id) {
   const c = mode === "edit" ? DEMO_COLABORADORES.find(x => x.id === id) : null;
   const v = f => (c ? c[f] : "");
+  let fotoData = c ? (c.foto || "") : "";
+  const jefeOpts = [{ v: "", label: "— Sin jefe directo —" }]
+    .concat(DATA.colaboradores(state.empresa.id).filter(o => o.id !== id).map(o => ({ v: o.id, label: o.nombre })));
   $$(".modal-overlay").forEach(o => o.remove()); // un solo modal a la vez (sin IDs duplicados)
   const ov = document.createElement("div");
   ov.className = "modal-overlay";
@@ -330,6 +376,15 @@ function openForm(mode, id) {
         <button class="icon-btn" id="modalClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
       <div class="modal__body">
+        <div class="photo-row">
+          <div class="avatar avatar--xl" id="photoPreview">${avatarInner(c || {})}</div>
+          <div class="photo-actions">
+            <button type="button" class="btn btn--ghost btn--sm" id="photoBtn">Subir foto</button>
+            <button type="button" class="btn btn--ghost btn--sm" id="photoClear"${(c && c.foto) ? "" : ' style="display:none"'}>Quitar</button>
+            <input type="file" id="photoInput" accept="image/*" hidden />
+            <div class="photo-hint">JPG o PNG, de preferencia cuadrada.</div>
+          </div>
+        </div>
         <div class="form-grid">
           <div class="form-section">Datos personales</div>
           <div class="field field--full"><label class="field__label">Nombre completo *</label><input class="input" id="f-nombre" value="${v("nombre")}" placeholder="Nombre y apellidos" /></div>
@@ -350,6 +405,7 @@ function openForm(mode, id) {
           <div class="form-section">Datos laborales</div>
           <div class="field"><label class="field__label">Puesto *</label><input class="input" id="f-puesto" value="${v("puesto")}" placeholder="Ej. Desarrollador" /></div>
           <div class="field"><label class="field__label">Área</label>${selectHTML("area", v("area") || AREAS[0], AREAS)}</div>
+          <div class="field"><label class="field__label">Reporta a</label>${selectHTML("jefe", v("jefeId") || "", jefeOpts)}</div>
           <div class="field"><label class="field__label">Fecha de ingreso *</label>${datepickHTML("ingreso", v("ingreso") || "")}</div>
           <div class="field"><label class="field__label">Tipo de contrato</label>${selectHTML("contrato", v("tipoContrato") || CONTRATOS[0], CONTRATOS)}</div>
           <div class="field"><label class="field__label">Jornada</label>${selectHTML("jornada", v("jornada") || JORNADAS[0], JORNADAS)}</div>
@@ -366,6 +422,22 @@ function openForm(mode, id) {
   document.body.appendChild(ov);
   requestAnimationFrame(() => ov.classList.add("is-on"));
   bindSelect(ov); bindDatepick(ov);
+  $("#photoBtn", ov).addEventListener("click", () => $("#photoInput", ov).click());
+  $("#photoInput", ov).addEventListener("change", e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      fotoData = reader.result;
+      $("#photoPreview", ov).innerHTML = `<img src="${fotoData}" alt="">`;
+      $("#photoClear", ov).style.display = "inline-flex";
+    };
+    reader.readAsDataURL(file);
+  });
+  $("#photoClear", ov).addEventListener("click", () => {
+    fotoData = "";
+    $("#photoPreview", ov).innerHTML = initials($("#f-nombre", ov).value || "?");
+    $("#photoClear", ov).style.display = "none";
+  });
   const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
   $("#modalClose", ov).addEventListener("click", close);
   $("#modalCancel", ov).addEventListener("click", close);
@@ -396,13 +468,21 @@ function openForm(mode, id) {
       jornada: $(".select[data-name='jornada']", ov).dataset.value,
       salario: Number(($("#f-salario", ov).value || "").replace(/[^\d]/g, "")) || "",
       estatus: $(".select[data-name='estatus']", ov).dataset.value,
+      jefeId: $(".select[data-name='jefe']", ov).dataset.value,
+      foto: fotoData,
       antiguedad: calcAntiguedad(ingreso),
     };
     if (mode === "edit") {
+      c.historial = c.historial || [];
+      if (c.puesto !== datos.puesto) c.historial.push({ fecha: hoyISO(), tipo: "Puesto", detalle: `${c.puesto} → ${datos.puesto}` });
+      if ((c.salario || 0) !== (datos.salario || 0)) c.historial.push({ fecha: hoyISO(), tipo: "Salario", detalle: `${dineroMX(c.salario) || "—"} → ${dineroMX(datos.salario) || "—"}` });
       Object.assign(c, datos);
       // TODO firebase: updateDoc(doc(db,`empresas/${state.empresa.id}/colaboradores/${id}`), datos)
     } else {
-      DEMO_COLABORADORES.push({ id: nuevoId(), empresaId: state.empresa.id, ...datos });
+      DEMO_COLABORADORES.push({
+        id: nuevoId(), empresaId: state.empresa.id, ...datos,
+        documentos: [], historial: [{ fecha: datos.ingreso, tipo: "Alta", detalle: "Ingreso a la empresa" }],
+      });
       // TODO firebase: addDoc(collection(db,`empresas/${state.empresa.id}/colaboradores`), datos)
     }
     close();
@@ -446,9 +526,135 @@ function deleteColab(id) {
   });
 }
 
+/* =====================================================================
+   Organigrama (jerarquía por "reporta a")
+   ===================================================================== */
+function orgNodeHTML(c, childrenMap) {
+  const kids = childrenMap[c.id] || [];
+  return `<li class="org-node">
+    <div class="org-card" data-id="${c.id}">
+      <div class="avatar avatar--sm">${avatarInner(c)}</div>
+      <div class="org-card__info"><div class="org-card__name">${c.nombre}</div><div class="org-card__role">${c.puesto}</div></div>
+    </div>
+    ${kids.length ? `<ul class="org-children">${kids.map(k => orgNodeHTML(k, childrenMap)).join("")}</ul>` : ""}
+  </li>`;
+}
+function renderOrganigrama() {
+  const list = DATA.colaboradores(state.empresa.id);
+  const byId = {}; list.forEach(c => byId[c.id] = c);
+  const childrenMap = {};
+  list.forEach(c => {
+    const parent = (c.jefeId && byId[c.jefeId]) ? c.jefeId : "__root__";
+    (childrenMap[parent] = childrenMap[parent] || []).push(c);
+  });
+  const roots = childrenMap["__root__"] || [];
+  const tree = roots.length
+    ? `<ul class="org-tree">${roots.map(r => orgNodeHTML(r, childrenMap)).join("")}</ul>`
+    : `<p class="muted-empty">Sin colaboradores en esta empresa.</p>`;
+  $("#view-organigrama").innerHTML = `
+    <div class="page-head"><h1>Organigrama</h1><p>Estructura jerárquica de ${state.empresa.nombre}. Haz clic en alguien para abrir su expediente.</p></div>
+    <div class="card" style="padding:26px;overflow-x:auto">${tree}</div>`;
+  $$("#view-organigrama .org-card").forEach(card => card.addEventListener("click", () => openSheet(card.dataset.id)));
+}
+
+/* =====================================================================
+   Documentos del expediente (modal de alta)
+   ===================================================================== */
+const DOC_TIPOS = ["INE", "CURP", "Acta de nacimiento", "Comprobante de domicilio", "Contrato firmado", "Constancia de situación fiscal", "Comprobante de estudios", "Otro"];
+function openDocModal(id) {
+  const c = colabById(id); if (!c) return;
+  $$(".modal-overlay").forEach(o => o.remove());
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  ov.innerHTML = `
+    <div class="modal modal--sm" role="dialog" aria-modal="true" style="text-align:left">
+      <div class="modal__head"><h3>Agregar documento</h3>
+        <button class="icon-btn" id="dmClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="modal__body">
+        <div class="field"><label class="field__label">Tipo de documento</label>${selectHTML("doctipo", DOC_TIPOS[0], DOC_TIPOS)}</div>
+        <div class="field" style="margin-top:14px"><label class="field__label">Archivo</label>
+          <button type="button" class="filepick" id="dmPick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg><span id="dmName">Seleccionar archivo…</span></button>
+          <input type="file" id="dmFile" hidden />
+        </div>
+      </div>
+      <div class="modal__foot"><button class="btn btn--ghost" id="dmCancel">Cancelar</button><button class="btn btn--primary" id="dmSave">Agregar</button></div>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add("is-on"));
+  bindSelect(ov);
+  let file = null;
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#dmClose", ov).addEventListener("click", close);
+  $("#dmCancel", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  $("#dmPick", ov).addEventListener("click", () => $("#dmFile", ov).click());
+  $("#dmFile", ov).addEventListener("change", e => { file = e.target.files[0]; if (file) $("#dmName", ov).textContent = file.name; });
+  $("#dmSave", ov).addEventListener("click", () => {
+    const tipo = $(".select[data-name='doctipo']", ov).dataset.value;
+    c.documentos = c.documentos || [];
+    c.documentos.push({ tipo, nombre: file ? file.name : `${tipo}.pdf`, fecha: hoyISO() });
+    // TODO firebase: subir archivo a Storage empresas/${state.empresa.id}/colaboradores/${id}/docs
+    close();
+    openSheet(id);
+    toast("Documento agregado.");
+  });
+}
+
+/* =====================================================================
+   Exportar — Excel (CSV) del listado y PDF del expediente
+   ===================================================================== */
+function exportarCSV() {
+  let list = DATA.colaboradores(state.empresa.id);
+  if (state.filtro !== "Todos") list = list.filter(c => c.estatus === state.filtro);
+  const cols = ["Nombre", "Puesto", "Área", "Estatus", "CURP", "RFC", "NSS", "Nacimiento", "Género", "Estado civil", "Correo", "Teléfono", "Domicilio", "Ingreso", "Antigüedad", "Tipo de contrato", "Jornada", "Salario", "Reporta a", "Emergencia", "Tel. emergencia"];
+  const esc = v => { v = (v === undefined || v === null) ? "" : String(v); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
+  const filas = list.map(c => {
+    const jefe = c.jefeId ? colabById(c.jefeId) : null;
+    return [c.nombre, c.puesto, c.area, c.estatus, c.curp, c.rfc, c.nss, c.nacimiento, c.genero, c.estadoCivil, c.email, c.tel, c.domicilio, c.ingreso, c.antiguedad, c.tipoContrato, c.jornada, c.salario, jefe ? jefe.nombre : "", c.emergenciaNombre, c.emergenciaTel].map(esc).join(",");
+  });
+  const csv = "\uFEFF" + [cols.join(","), ...filas].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `colaboradores_${state.empresa.id}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast(`Exportados ${list.length} colaboradores a Excel.`);
+}
+
+function exportarPDF(id) {
+  const c = colabById(id); if (!c) return;
+  if (!(window.jspdf && window.jspdf.jsPDF)) { toast("La exportación a PDF requiere conexión (se carga en tu sitio publicado)."); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  let y = 56;
+  doc.setFontSize(18); doc.setFont(undefined, "bold"); doc.text(c.nombre, 56, y);
+  y += 18; doc.setFontSize(11); doc.setFont(undefined, "normal"); doc.setTextColor(120); doc.text(`${c.puesto} · ${c.area}`, 56, y); doc.setTextColor(0);
+  const jefe = c.jefeId ? colabById(c.jefeId) : null;
+  const line = (k, val) => { if (!val) return; doc.setFont(undefined, "bold"); doc.setFontSize(10); doc.text(k + ":", 56, y); doc.setFont(undefined, "normal"); doc.text(String(val), 190, y); y += 17; if (y > 790) { doc.addPage(); y = 56; } };
+  const head = t => { y += 12; doc.setFontSize(12); doc.setFont(undefined, "bold"); doc.setTextColor(75, 79, 230); doc.text(t, 56, y); doc.setTextColor(0); y += 16; };
+  head("Datos personales");
+  line("CURP", c.curp); line("RFC", c.rfc); line("NSS", c.nss); line("Nacimiento", c.nacimiento ? fechaLarga(c.nacimiento) : ""); line("Género", c.genero); line("Estado civil", c.estadoCivil);
+  head("Datos laborales");
+  line("Puesto", c.puesto); line("Área", c.area); line("Reporta a", jefe ? jefe.nombre : ""); line("Ingreso", c.ingreso ? fechaLarga(c.ingreso) : ""); line("Antigüedad", c.antiguedad); line("Tipo de contrato", c.tipoContrato); line("Jornada", c.jornada); line("Salario mensual", dineroMX(c.salario));
+  head("Contacto");
+  line("Correo", c.email); line("Teléfono", c.tel); line("Domicilio", c.domicilio); line("Emergencia", c.emergenciaNombre ? `${c.emergenciaNombre} ${c.emergenciaTel || ""}` : "");
+  doc.save(`Expediente_${c.nombre.replace(/\s+/g, "_")}.pdf`);
+  toast("PDF generado.");
+}
+
+/* ---------- Toast ---------- */
+function toast(msg) {
+  const t = document.createElement("div");
+  t.className = "toast"; t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(() => t.classList.add("is-on"));
+  setTimeout(() => { t.classList.remove("is-on"); setTimeout(() => t.remove(), 300); }, 2600);
+}
+
 /* ---------- Placeholders de módulos ---------- */
 const MODS = {
-  organigrama: ["Organigrama", "Visualiza la estructura jerárquica de cada empresa. Próximo en construcción.", `<rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4M12 12H5v4M12 12h7v4"/>`],
   asistencia:  ["Asistencia", "Reloj checador con QR y geo-cerca, turnos y tolerancia configurable. Recicla el check-in del member app de Gymvexa.", `<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>`],
   incidencias: ["Incidencias", "Faltas, retardos, permisos e incapacidades con flujo de aprobación sobre el ledger inmutable.", `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/>`],
   vacaciones:  ["Vacaciones", "Saldos conforme a la LFT, solicitudes y aprobaciones con trazabilidad.", `<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>`],
@@ -472,6 +678,7 @@ function go(view) {
   $$(".nav-item").forEach(n => n.classList.toggle("is-active", n.dataset.view === view));
   if (view === "dashboard") { renderKpis(); renderRecent(); }
   if (view === "colaboradores") renderColab();
+  if (view === "organigrama") renderOrganigrama();
   if (MODS[view]) renderPlaceholder(view);
   $("#sidebar").classList.remove("is-open");
   $("#scrim").classList.remove("is-on");
@@ -543,6 +750,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   $("#newColabBtn")?.addEventListener("click", () => openForm("new"));
+  $("#exportBtn")?.addEventListener("click", exportarCSV);
 
   $$("#statusFilter .chip").forEach(c => c.addEventListener("click", () => {
     $$("#statusFilter .chip").forEach(x => x.classList.remove("is-active"));

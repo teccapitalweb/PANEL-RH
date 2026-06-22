@@ -36,13 +36,20 @@ empresas/{empresaId}/eventos/{eventoId}   ← ledger inmutable (auditoría)
 - Multi-tenant: selector de empresa que filtra todo por tenant.
 - Toggle día/noche (persiste) con dark mode futurista.
 - Módulo **Colaboradores** funcional: **alta, edición y baja (CRUD)** con formulario premium — selects glass, date picker custom (calendario) y confirmación de baja propia (sin diálogos nativos). Más tabla, filtros por estatus, búsqueda y slide-over de expediente.
+- **Fase 1 — Personas (completa):**
+  - **Organigrama**: árbol jerárquico por "reporta a", navegable (clic abre expediente).
+  - **Foto del colaborador**: subir/quitar desde el formulario (vista previa al instante).
+  - **Documentos adjuntos**: INE, CURP, contrato, comprobantes — agregar/quitar desde el expediente.
+  - **Historial laboral**: línea de tiempo que registra **automáticamente** los cambios de puesto y salario con fecha.
+  - **Exportar**: lista completa a **Excel (CSV)** y expediente individual a **PDF**.
 - Dashboard con KPIs por empresa.
 - Navegación de los módulos del MVP (Asistencia, Incidencias, Vacaciones, NOM-035) como placeholders.
 - Responsive hasta 375px (sidebar en drawer).
 
 ## Lo que NO se tocó / sigue
-- Nómina (marcada "Pronto") — fase 2, vía PAC con el `TimbradoProvider`.
-- Módulos en placeholder: pendientes de construir sobre este shell.
-- Auth/datos reales: hoy en modo demo.
+- Nómina (marcada "Pronto") — fase final, vía PAC con el `TimbradoProvider`.
+- Módulos en placeholder (Asistencia, Incidencias, Vacaciones, NOM-035): pendientes de construir sobre este shell.
+- Auth/datos reales: hoy en modo demo (foto y documentos viven en memoria; en producción van a Firebase Storage — ya marcado con TODO).
 
-Orden sugerido de construcción: Asistencia → Incidencias/Vacaciones → NOM-035 → (fase 2) Nómina.
+Orden sugerido de construcción: **Asistencia → NOM-035 → Portal del colaborador → (al final) Nómina**.
+
