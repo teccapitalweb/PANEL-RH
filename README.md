@@ -35,7 +35,7 @@ empresas/{empresaId}/eventos/{eventoId}   ← ledger inmutable (auditoría)
 - Login premium con glassmorphism + blue glow.
 - Multi-tenant: selector de empresa que filtra todo por tenant.
 - Toggle día/noche (persiste) con dark mode futurista.
-- Módulo **Colaboradores / Expediente**: tabla, filtros por estatus, búsqueda y slide-over de detalle.
+- Módulo **Colaboradores** funcional: **alta, edición y baja (CRUD)** con formulario premium — selects glass, date picker custom (calendario) y confirmación de baja propia (sin diálogos nativos). Más tabla, filtros por estatus, búsqueda y slide-over de expediente.
 - Dashboard con KPIs por empresa.
 - Navegación de los módulos del MVP (Asistencia, Incidencias, Vacaciones, NOM-035) como placeholders.
 - Responsive hasta 375px (sidebar en drawer).
