@@ -1,4 +1,4 @@
-(function (PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS) {
+(function (PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS) {
 /* =====================================================================
    panel.js — Panel privado de Recursos Humanos
    Lee los aspirantes guardados por el kiosko (mismo origen / Firestore).
@@ -245,28 +245,58 @@ function abrirDetalle(id) {
 }
 
 /* ---------- Configuración (texto del popup) ---------- */
+function puestosActuales() {
+  try { const p = JSON.parse(localStorage.getItem("examenrh_puestos") || "null"); if (Array.isArray(p) && p.length) return p; } catch (e) {}
+  return PUESTOS;
+}
+
 function abrirConfig() {
   const c = configActual();
+  let pl = puestosActuales().slice();
   const ov = document.createElement("div"); ov.className = "modal-overlay";
   ov.innerHTML = `<div class="modal">
-    <div class="modal__head"><h3>Mensaje final del examen</h3><button class="icon-btn" data-x><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <div class="modal__head"><h3>Configuración</h3><button class="icon-btn" data-x><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
     <div class="modal__body">
-      <p style="color:var(--muted);font-size:.86rem;margin-bottom:16px">Esto es lo que ve el aspirante al terminar. Se guarda y el kiosko lo toma.</p>
+      <div class="sec-title" style="margin-top:0">Puestos del examen</div>
+      <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Son los botones de "Puesto al que aspiras" que ve el aspirante. Agrega o quita los que necesites.</p>
+      <div class="tags" id="cfgPuestos"></div>
+      <div class="add-row"><input class="input" id="cfgPuestoNew" placeholder="Nuevo puesto…"><button class="btn btn--sm" id="cfgPuestoAdd">Agregar</button></div>
+
+      <div class="sec-title">Mensaje final del examen</div>
+      <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Lo que ve el aspirante al terminar.</p>
       <div class="field"><label class="field__label">Título</label><input class="input" id="cfgTit" value="${c.titulo.replace(/"/g, "&quot;")}"></div>
       <div class="field"><label class="field__label">Mensaje</label><textarea class="input" id="cfgCue" rows="4">${c.cuerpo}</textarea></div>
+      <p class="cfg-error" id="cfgErr"></p>
     </div>
     <div class="modal__foot"><button class="btn btn--ghost" data-x>Cancelar</button><button class="btn btn--primary" id="cfgSave">Guardar</button></div>
   </div>`;
   document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
   const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  const pintar = () => {
+    $("#cfgPuestos", ov).innerHTML = pl.length
+      ? pl.map((p, i) => `<span class="tag">${p}<button class="tag__x" data-i="${i}" aria-label="Quitar ${p}">×</button></span>`).join("")
+      : `<span style="color:var(--faint);font-size:.85rem">Sin puestos aún</span>`;
+    $$(".tag__x", ov).forEach(b => b.addEventListener("click", () => { pl.splice(Number(b.dataset.i), 1); $("#cfgErr", ov).textContent = ""; pintar(); }));
+  };
+  pintar();
+  const agregar = () => {
+    const v = $("#cfgPuestoNew", ov).value.trim();
+    if (!v) return;
+    if (pl.some(p => p.toLowerCase() === v.toLowerCase())) { $("#cfgErr", ov).textContent = "Ese puesto ya está en la lista."; return; }
+    pl.push(v); $("#cfgPuestoNew", ov).value = ""; $("#cfgErr", ov).textContent = ""; pintar(); $("#cfgPuestoNew", ov).focus();
+  };
+  $("#cfgPuestoAdd", ov).addEventListener("click", agregar);
+  $("#cfgPuestoNew", ov).addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); agregar(); } });
   $$("[data-x]", ov).forEach(b => b.addEventListener("click", close));
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
   $("#cfgSave", ov).addEventListener("click", () => {
     const tit = $("#cfgTit", ov).value.trim(), cue = $("#cfgCue", ov).value.trim();
-    if (!tit || !cue) return;
+    if (!pl.length) { $("#cfgErr", ov).textContent = "Deja al menos un puesto."; return; }
+    if (!tit || !cue) { $("#cfgErr", ov).textContent = "El título y el mensaje no pueden quedar vacíos."; return; }
     try { localStorage.setItem("examenrh_config", JSON.stringify({ mensajeFinTitulo: tit, mensajeFinCuerpo: cue })); } catch (e) {}
-    // TODO firebase: setDoc(doc(db,"config","evaluacion"), {...}) para que el kiosko lo lea
-    close(); toast("Mensaje actualizado.");
+    try { localStorage.setItem("examenrh_puestos", JSON.stringify(pl)); } catch (e) {}
+    // TODO firebase: setDoc(doc(db,"config","evaluacion"), { mensajeFinTitulo, mensajeFinCuerpo, puestos: pl })
+    close(); toast("Configuración guardada.");
   });
 }
 
@@ -293,4 +323,4 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#logoutBtn").addEventListener("click", () => { try { sessionStorage.removeItem("examenrh_rh_ok"); } catch (e) {} $("#app").classList.remove("is-on"); $("#login").style.display = "grid"; const p = $("#pw"); if (p) { p.value = ""; p.focus(); } });
   $("#cfgBtn").addEventListener("click", abrirConfig);
 });
-})(window.__EVAL.PREGUNTAS, window.__EVAL.DIMENSIONES, window.__EVAL.NIVEL_DIM, window.__EVAL.CRITICAS, window.__EVAL.CONFIG, window.__EVAL.RH_PASS);
+})(window.__EVAL.PREGUNTAS, window.__EVAL.DIMENSIONES, window.__EVAL.NIVEL_DIM, window.__EVAL.CRITICAS, window.__EVAL.CONFIG, window.__EVAL.RH_PASS, window.__EVAL.PUESTOS);

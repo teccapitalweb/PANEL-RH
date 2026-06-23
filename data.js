@@ -185,4 +185,4 @@ const NIVEL_DIM = [
 const CRITICAS = ["honestidad", "juicio"];
 
 /* Puente para el panel de RH (lee estos valores) */
-if (typeof window !== "undefined") { window.__EVAL = { PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS }; }
+if (typeof window !== "undefined") { window.__EVAL = { PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS }; }

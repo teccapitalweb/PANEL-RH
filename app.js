@@ -102,26 +102,36 @@ function renderBienvenida() {
   $("#goStart").addEventListener("click", () => { state.fase = "datos"; render(); });
 }
 
+function puestosActuales() {
+  try { const p = JSON.parse(localStorage.getItem("examenrh_puestos") || "null"); if (Array.isArray(p) && p.length) return p; } catch (e) {}
+  return PUESTOS;
+}
+
 function renderDatos() {
   setProgreso(0.05, "Tus datos");
   const d = state.datos;
+  const PU = puestosActuales();
   const chips = (name, arr, val) => `<div class="choices" data-name="${name}">${arr.map(o => `<button type="button" class="choice ${val === o ? "is-sel" : ""}" data-v="${o}">${o}</button>`).join("")}</div>`;
   $("#stage").innerHTML = `
     <div class="screen">
       <div class="k-head"><h2>Cuéntanos de ti</h2><p>Usaremos estos datos solo para contactarte.</p></div>
       <div class="form">
+        <div class="form-section">Datos de contacto</div>
         <div class="field"><label class="field__label">Nombre completo *</label><input class="input" id="fNombre" value="${d.nombre || ""}" placeholder="Tu nombre"></div>
         <div class="form-grid">
           <div class="field"><label class="field__label">Teléfono *</label><input class="input" id="fTel" inputmode="numeric" value="${d.tel || ""}" placeholder="10 dígitos"></div>
           <div class="field"><label class="field__label">Correo *</label><input class="input" id="fMail" type="email" value="${d.correo || ""}" placeholder="tu@correo.com"></div>
         </div>
-        <div class="field"><label class="field__label">CURP</label><input class="input" id="fCurp" value="${d.curp || ""}" placeholder="Opcional" maxlength="18" style="text-transform:uppercase"></div>
-        <div class="field"><label class="field__label">Fecha de nacimiento</label>${datepickHTML("fNac", d.nacimiento, "2000-01")}</div>
+        <div class="form-grid">
+          <div class="field"><label class="field__label">CURP</label><input class="input" id="fCurp" value="${d.curp || ""}" placeholder="Opcional" maxlength="18" style="text-transform:uppercase"></div>
+          <div class="field"><label class="field__label">Fecha de nacimiento</label>${datepickHTML("fNac", d.nacimiento, "2000-01")}</div>
+        </div>
+        <div class="form-section">Perfil</div>
         <div class="field"><label class="field__label">Género</label>${chips("genero", GENEROS, d.genero)}</div>
         <div class="field"><label class="field__label">Escolaridad</label>${chips("escolaridad", ESCOLARIDAD, d.escolaridad)}</div>
         <div class="field"><label class="field__label">Puesto al que aspiras *</label>
-          ${chips("puesto", [...PUESTOS, "Otro"], PUESTOS.includes(d.puesto) ? d.puesto : (d.puesto ? "Otro" : ""))}
-          <input class="input" id="puestoOtro" placeholder="¿Cuál puesto?" value="${(!PUESTOS.includes(d.puesto) && d.puesto) ? d.puesto : ""}" ${(!PUESTOS.includes(d.puesto) && d.puesto) ? "" : "hidden"} style="margin-top:9px"></div>
+          ${chips("puesto", [...PU, "Otro"], PU.includes(d.puesto) ? d.puesto : (d.puesto ? "Otro" : ""))}
+          <input class="input" id="puestoOtro" placeholder="¿Cuál puesto?" value="${(!PU.includes(d.puesto) && d.puesto) ? d.puesto : ""}" ${(!PU.includes(d.puesto) && d.puesto) ? "" : "hidden"} style="margin-top:9px"></div>
         <p class="form-error" id="dErr"></p>
       </div>
       <div class="k-actions">

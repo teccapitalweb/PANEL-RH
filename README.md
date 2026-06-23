@@ -11,7 +11,7 @@ puro, listas para **GitHub Pages** (arrastrar todos los archivos a la raíz del 
 - **Panel de RH** (`panel.html`) — privado. Lista de aspirantes con ranking,
   semáforo y banderas; detalle con calificación por dimensión, entrevista con guía
   "en qué fijarte", respuestas con porqué, y decisión (Contratar / En revisión /
-  Descartar) con notas. También edita el mensaje final del kiosko.
+  Descartar) con notas. Desde Configuración (engrane) edita el mensaje final del kiosko Y el catálogo de puestos (agrega/quita).
 
 ## Cómo se entra al panel
 
@@ -61,8 +61,8 @@ sitio, aparecera en el panel (mismo origen -> mismo almacenamiento).
 Todo esta marcado en el codigo con `// TODO firebase`:
 
 - **Kiosko** -> al terminar, `addDoc(collection(db,"aspirantes"), registro)`.
-- **Panel** -> leer `aspirantes`, actualizar decision/notas, y guardar el mensaje
-  final en `config/evaluacion`.
+- **Panel** -> leer `aspirantes`, actualizar decision/notas, y guardar en
+  `config/evaluacion` el mensaje final y el catalogo de puestos.
 - **Acceso** -> cambiar la contraseña local por **Firebase Auth** (acceso real de RH).
 
 ## Notas de diseño
