@@ -7,7 +7,8 @@ puro, listas para **GitHub Pages** (arrastrar todos los archivos a la raíz del 
 
 - **Kiosko del aspirante** (`index.html`) — examen estilo kiosko (una pregunta por
   pantalla, mínimo tecleo). 36 reactivos + prueba de reacción. Califica por
-  dimensión y guarda al aspirante.
+  dimensión y guarda al aspirante. Si el puesto es uno de los 6 predefinidos, agrega 4
+  preguntas a modo del puesto (se califican como "Ajuste al puesto", aparte del global).
 - **Panel de RH** (`panel.html`) — privado. Lista de aspirantes con ranking,
   semáforo y banderas; detalle con calificación por dimensión, entrevista con guía
   "en qué fijarte", respuestas con porqué, y decisión (Contratar / En revisión /

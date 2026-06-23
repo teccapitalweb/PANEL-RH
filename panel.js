@@ -1,4 +1,4 @@
-(function (PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS) {
+(function (PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS, PREGUNTAS_PUESTO) {
 /* =====================================================================
    panel.js — Panel privado de Recursos Humanos
    Lee los aspirantes guardados por el kiosko (mismo origen / Firestore).
@@ -21,13 +21,16 @@ function calcularResultado(resp, aten) {
   Object.keys(DIMENSIONES).forEach(d => { if (d !== "atencion") dims[d] = { sum: 0, max: 0 }; });
   Object.values(resp).forEach(r => { if (dims[r.dim] && !r.info) { dims[r.dim].sum += r.v; dims[r.dim].max += 3; } });
   const porDim = {};
-  Object.keys(dims).forEach(d => { const pct = dims[d].max ? dims[d].sum / dims[d].max : 0; porDim[d] = { pct, nivel: nivelDimObj(pct).label }; });
+  Object.keys(dims).forEach(d => { if (dims[d].max > 0) { const pct = dims[d].sum / dims[d].max; porDim[d] = { pct, nivel: nivelDimObj(pct).label }; } });
   if (aten) porDim.atencion = { pct: aten.score / 3, nivel: nivelDimObj(aten.score / 3).label, avgMs: aten.avgMs };
   const vals = Object.values(porDim).map(x => x.pct);
   const global = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
   const aciertos = Object.values(resp).filter(r => r.dim === "intelecto" && r.correcta).length;
   const banderas = CRITICAS.filter(d => porDim[d] && porDim[d].pct < 0.45);
-  return { porDim, global, aciertosIntelecto: aciertos, banderas };
+  const rResp = Object.values(resp).filter(r => r.dim === "puesto" && !r.info);
+  const rmax = rResp.length * 3, rsum = rResp.reduce((s, r) => s + r.v, 0);
+  const puesto = rmax ? { pct: rsum / rmax, nivel: nivelDimObj(rsum / rmax).label, n: rResp.length } : null;
+  return { porDim, global, aciertosIntelecto: aciertos, banderas, puesto };
 }
 
 /* ---------- Datos de ejemplo ---------- */
@@ -55,6 +58,11 @@ function genAspirante(b, idx) {
     else { const t = (b.overrides && b.overrides[q.dim] != null) ? b.overrides[q.dim] : b.target; i = pickByFav(q.opciones, t); }
     const opt = q.opciones[i];
     respuestas[q.id] = { optIdx: i, v: opt.v, dim: q.dim, correcta: !!opt.correcta, info: !!q.info, otro: !!opt.otro, otroTexto: opt.otro ? "Un conocido que ya trabaja aquí" : "", porque: q.info ? "" : "Porque va con mi forma de ser y mi experiencia." };
+  });
+  ((PREGUNTAS_PUESTO && PREGUNTAS_PUESTO[b.puesto]) || []).forEach(q => {
+    const t = (b.overrides && b.overrides[q.dim] != null) ? b.overrides[q.dim] : b.target;
+    const i = pickByFav(q.opciones, t); const opt = q.opciones[i];
+    respuestas[q.id] = { optIdx: i, v: opt.v, dim: q.dim, correcta: !!opt.correcta, info: false, otro: false, otroTexto: "", porque: "Por mi experiencia en ese tipo de trabajo." };
   });
   const atencion = { avgMs: b.ms, score: b.ms < 320 ? 3 : b.ms < 460 ? 2 : b.ms < 650 ? 1 : 0, intentos: [b.ms - 18, b.ms + 22, b.ms, b.ms + 9, b.ms - 7] };
   const resultado = calcularResultado(respuestas, atencion);
@@ -172,6 +180,12 @@ function abrirDetalle(id) {
     ["Género", a.datos.genero], ["Escolaridad", a.datos.escolaridad], ["Puesto", a.datos.puesto],
   ].filter(r => r[1]).map(r => `<div class="d-row"><span class="d-row__k">${r[0]}</span><span class="d-row__v">${r[1]}</span></div>`).join("");
 
+  const bloquePuesto = ((PREGUNTAS_PUESTO && PREGUNTAS_PUESTO[a.datos.puesto]) || []).map(q => {
+    const r = a.respuestas[q.id]; if (!r) return "";
+    const opt = q.opciones[r.optIdx]; const txt = opt ? opt.t : "—";
+    const marca = q.opciones.some(o => o.correcta) ? (r.correcta ? `<span class="ok">✓</span>` : `<span class="bad">✕</span>`) : "";
+    return `<div class="ans-item"><div class="ans-q">${q.texto}</div><div class="ans-a">${marca}${txt}</div>${r.porque ? `<div class="ans-why"><span>Porqué:</span> ${r.porque}</div>` : ""}</div>`;
+  }).join("");
   const botones = PREGUNTAS.filter(q => q.tipo !== "abierta").map(q => {
     const r = a.respuestas[q.id]; if (!r) return "";
     const opt = q.opciones[r.optIdx]; const txt = opt ? opt.t : "—";
@@ -223,6 +237,8 @@ function abrirDetalle(id) {
 
       <div class="sec-title">Respuestas y porqués</div>
       ${botones}
+
+      ${bloquePuesto ? `<div class="sec-title">Preguntas del puesto · ${a.datos.puesto}</div>${a.resultado.puesto ? `<div class="dimrow"><div class="dimrow__top"><span class="dimrow__name">Ajuste al puesto</span><span class="badge badge--${clsDePct(a.resultado.puesto.pct)}">${a.resultado.puesto.nivel} · ${pct100(a.resultado.puesto.pct)}%</span></div><div class="dimbar"><div class="dimfill dimfill--${clsDePct(a.resultado.puesto.pct)}" style="width:${pct100(a.resultado.puesto.pct)}%"></div></div></div>` : ""}${bloquePuesto}` : ""}
 
       <div class="sec-title">Decisión</div>
       <div class="dec-grid">
@@ -323,4 +339,4 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#logoutBtn").addEventListener("click", () => { try { sessionStorage.removeItem("examenrh_rh_ok"); } catch (e) {} $("#app").classList.remove("is-on"); $("#login").style.display = "grid"; const p = $("#pw"); if (p) { p.value = ""; p.focus(); } });
   $("#cfgBtn").addEventListener("click", abrirConfig);
 });
-})(window.__EVAL.PREGUNTAS, window.__EVAL.DIMENSIONES, window.__EVAL.NIVEL_DIM, window.__EVAL.CRITICAS, window.__EVAL.CONFIG, window.__EVAL.RH_PASS, window.__EVAL.PUESTOS);
+})(window.__EVAL.PREGUNTAS, window.__EVAL.DIMENSIONES, window.__EVAL.NIVEL_DIM, window.__EVAL.CRITICAS, window.__EVAL.CONFIG, window.__EVAL.RH_PASS, window.__EVAL.PUESTOS, window.__EVAL.PREGUNTAS_PUESTO);

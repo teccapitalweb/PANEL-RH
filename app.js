@@ -180,12 +180,16 @@ function renderInstrucciones() {
         <button class="btn btn--xl btn--primary" id="goExam">Comenzar evaluación</button>
       </div>
     </div>`;
-  $("#goExam").addEventListener("click", () => { state.fase = "examen"; state.qIdx = 0; render(); });
+  $("#goExam").addEventListener("click", () => {
+    state.preguntas = PREGUNTAS.concat((typeof PREGUNTAS_PUESTO !== "undefined" && PREGUNTAS_PUESTO[state.datos.puesto]) || []);
+    state.fase = "examen"; state.qIdx = 0; render();
+  });
 }
 
 function renderPregunta() {
-  const total = PREGUNTAS.length;
-  const q = PREGUNTAS[state.qIdx];
+  const lista = state.preguntas && state.preguntas.length ? state.preguntas : PREGUNTAS;
+  const total = lista.length;
+  const q = lista[state.qIdx];
   const tag = q.tag || DIMENSIONES[q.dim] || "";
   setProgreso((state.qIdx + 1) / (total + 1), `Pregunta ${state.qIdx + 1} de ${total}`);
   const prev = state.respuestas[q.id];
@@ -264,7 +268,8 @@ function renderAbierta(q, tag, prev) {
   });
 }
 function avanzarPregunta() {
-  if (state.qIdx < PREGUNTAS.length - 1) { state.qIdx++; render(); }
+  const lista = state.preguntas && state.preguntas.length ? state.preguntas : PREGUNTAS;
+  if (state.qIdx < lista.length - 1) { state.qIdx++; render(); }
   else { state.fase = "reaccion"; render(); }
 }
 
@@ -344,15 +349,17 @@ function calcularResultado(resp, aten) {
   Object.values(resp).forEach(r => { if (dims[r.dim] && !r.info) { dims[r.dim].sum += r.v; dims[r.dim].max += 3; } });
   const porDim = {};
   Object.keys(dims).forEach(d => {
-    const pct = dims[d].max ? dims[d].sum / dims[d].max : 0;
-    porDim[d] = { pct, nivel: nivelDim(pct) };
+    if (dims[d].max > 0) { const pct = dims[d].sum / dims[d].max; porDim[d] = { pct, nivel: nivelDim(pct) }; }
   });
   if (aten) porDim.atencion = { pct: aten.score / 3, nivel: nivelDim(aten.score / 3), avgMs: aten.avgMs };
   const vals = Object.values(porDim).map(x => x.pct);
   const global = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
   const aciertos = Object.values(resp).filter(r => r.dim === "intelecto" && r.correcta).length;
   const banderas = CRITICAS.filter(d => porDim[d] && porDim[d].pct < 0.45);
-  return { porDim, global, aciertosIntelecto: aciertos, banderas };
+  const rResp = Object.values(resp).filter(r => r.dim === "puesto" && !r.info);
+  const rmax = rResp.length * 3, rsum = rResp.reduce((s, r) => s + r.v, 0);
+  const puesto = rmax ? { pct: rsum / rmax, nivel: nivelDim(rsum / rmax), n: rResp.length } : null;
+  return { porDim, global, aciertosIntelecto: aciertos, banderas, puesto };
 }
 function nivelDim(pct) { return (NIVEL_DIM.find(n => pct >= n.min) || NIVEL_DIM[NIVEL_DIM.length - 1]).label; }
 
@@ -393,7 +400,7 @@ function renderFin() {
   requestAnimationFrame(() => ov.classList.add("is-on"));
   $("#finOk", ov).addEventListener("click", () => {
     ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220);
-    state.fase = "bienvenida"; state.qIdx = 0; state.datos = {}; state.respuestas = {}; state.atencion = null;
+    state.fase = "bienvenida"; state.qIdx = 0; state.datos = {}; state.respuestas = {}; state.atencion = null; state.preguntas = null;
     render();
   });
 }

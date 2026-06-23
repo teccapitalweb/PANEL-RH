@@ -37,6 +37,7 @@ const DIMENSIONES = {
   psicosocial: "Bienestar psicosocial",
   honestidad: "Honestidad e integridad",
   logistica: "Disponibilidad",
+  puesto: "Aptitud para el puesto",
   atencion: "Atención y reacción",
 };
 
@@ -184,5 +185,98 @@ const NIVEL_DIM = [
 /* Dimensiones críticas: si salen bajas, levantan bandera para RH */
 const CRITICAS = ["honestidad", "juicio"];
 
+/* =====================================================================
+   Preguntas ESPECÍFICAS por puesto. Se agregan después de las generales,
+   según el puesto que elija el aspirante. Mismas reglas que las generales:
+   cada opción lleva favorabilidad v (0-3). Edítalas/agrégalas aquí.
+   La clave debe coincidir EXACTO con el texto del puesto.
+   ===================================================================== */
+const PREGUNTAS_PUESTO = {
+  "Atención a cliente": [
+    { id: "ac1", dim: "puesto", texto: "Un cliente llega muy molesto y te grita por algo que no fue tu culpa. ¿Qué haces?", opciones: [
+      { t: "Lo escucho con calma, ofrezco una disculpa por la molestia y busco solución", v: 3 }, { t: "Le explico que no fue mi culpa para que entienda", v: 1 }, { t: "Llamo a mi jefe sin intentar nada", v: 1 }, { t: "Le digo que primero se calme", v: 0 },
+    ]},
+    { id: "ac2", dim: "puesto", texto: "Tienes a varios clientes esperando al mismo tiempo. ¿Cómo te organizas?", opciones: [
+      { t: "Atiendo por orden de llegada y aviso a los demás que ya casi", v: 3 }, { t: "Atiendo primero al que se ve más enojado", v: 1 }, { t: "Atiendo al que parece que comprará más", v: 1 }, { t: "Me apuro aunque cometa errores", v: 0 },
+    ]},
+    { id: "ac3", dim: "puesto", texto: "Un cliente pide algo que no puedes darle (no hay o va contra la política). ¿Qué haces?", opciones: [
+      { t: "Le explico con amabilidad por qué no se puede y le ofrezco una alternativa", v: 3 }, { t: "Le digo que no se puede y ya", v: 1 }, { t: "Se lo doy con tal de que no se enoje", v: 0 }, { t: "Lo mando con otra persona", v: 1 },
+    ]},
+    { id: "ac4", dim: "puesto", texto: "Para ti, dar un buen servicio es…", opciones: [
+      { t: "Que el cliente se vaya satisfecho y quiera regresar", v: 3 }, { t: "Atender rápido aunque sea cortante", v: 1 }, { t: "Solo hacer lo que me toca", v: 0 }, { t: "Que no se queje conmigo", v: 1 },
+    ]},
+  ],
+  "Cajero(a)": [
+    { id: "caj1", dim: "puesto", texto: "Al cierre te SOBRA dinero en la caja. ¿Qué haces?", opciones: [
+      { t: "Lo reporto y lo registro como sobrante", v: 3 }, { t: "Lo guardo por si después falta", v: 0 }, { t: "Me lo quedo, total es poco", v: 0 }, { t: "No digo nada y dejo todo igual", v: 1 },
+    ]},
+    { id: "caj2", dim: "puesto", texto: "Un cliente paga con $200 una compra de $137. ¿Cuánto es su cambio?", opciones: [
+      { t: "$63", v: 3, correcta: true }, { t: "$73", v: 0 }, { t: "$67", v: 0 }, { t: "$53", v: 0 },
+    ]},
+    { id: "caj3", dim: "puesto", texto: "Hay mucha fila y un cliente te apura. ¿Qué haces?", opciones: [
+      { t: "Mantengo el ritmo con cuidado para no equivocarme en el cobro", v: 3 }, { t: "Me apuro aunque pueda dar mal el cambio", v: 0 }, { t: "Le digo de mala gana que se espere", v: 1 }, { t: "Me pongo nervioso y me trabo", v: 1 },
+    ]},
+    { id: "caj4", dim: "puesto", texto: "Un compañero te pide que le marques de menos un producto a un amigo suyo. ¿Qué haces?", opciones: [
+      { t: "Me niego, eso es un robo a la empresa", v: 3 }, { t: "Lo hago una vez, no pasa nada", v: 0 }, { t: "Le digo que mejor lo haga él", v: 1 }, { t: "Lo hago si nadie ve", v: 0 },
+    ]},
+  ],
+  "Ventas": [
+    { id: "ven1", dim: "puesto", texto: "Un cliente dice \"está muy caro\". ¿Qué haces?", opciones: [
+      { t: "Le muestro el valor y beneficios, y busco la opción que le acomode", v: 3 }, { t: "Le bajo el precio de inmediato", v: 1 }, { t: "Le digo que es lo que hay", v: 0 }, { t: "Dejo que se vaya", v: 0 },
+    ]},
+    { id: "ven2", dim: "puesto", texto: "Para cerrar una venta, lo más importante es…", opciones: [
+      { t: "Entender qué necesita el cliente y ofrecerle lo correcto", v: 3 }, { t: "Insistir hasta que compre", v: 1 }, { t: "Prometer lo que sea con tal de vender", v: 0 }, { t: "Vender siempre lo más caro", v: 1 },
+    ]},
+    { id: "ven3", dim: "puesto", texto: "No llevas ventas en el día y ya va a cerrar la tienda. ¿Qué haces?", opciones: [
+      { t: "Sigo intentando con buena actitud hasta el final", v: 3 }, { t: "Me rindo, ya ni modo", v: 0 }, { t: "Presiono fuerte al primer cliente que entre", v: 1 }, { t: "Me pongo de malas", v: 0 },
+    ]},
+    { id: "ven4", dim: "puesto", texto: "Un cliente pregunta por algo que tu producto NO hace. ¿Qué haces?", opciones: [
+      { t: "Le digo la verdad y le ofrezco lo que sí cubre su necesidad", v: 3 }, { t: "Le digo que sí lo hace con tal de vender", v: 0 }, { t: "Cambio de tema", v: 1 }, { t: "Le digo que pregunte en otro lado", v: 1 },
+    ]},
+  ],
+  "Almacén": [
+    { id: "alm1", dim: "puesto", texto: "Recibes mercancía y la cantidad NO cuadra con la nota. ¿Qué haces?", opciones: [
+      { t: "Lo reporto y no firmo hasta aclararlo", v: 3 }, { t: "Firmo para no hacer problema", v: 0 }, { t: "Lo acomodo y luego veo", v: 1 }, { t: "No digo nada", v: 0 },
+    ]},
+    { id: "alm2", dim: "puesto", texto: "Para mantener el almacén, lo más importante es…", opciones: [
+      { t: "Orden, limpieza y que todo esté en su lugar", v: 3 }, { t: "Que quepa todo aunque esté revuelto", v: 1 }, { t: "Hacerlo rápido aunque quede desordenado", v: 0 }, { t: "Esperar a que alguien diga qué hacer", v: 1 },
+    ]},
+    { id: "alm3", dim: "puesto", texto: "El trabajo implica cargar y estar de pie varias horas. ¿Cómo te sientes con eso?", opciones: [
+      { t: "Sin problema, estoy acostumbrado al trabajo físico", v: 3 }, { t: "Lo hago pero me cuesta", v: 1 }, { t: "Prefiero evitar cargar", v: 0 }, { t: "No me gusta el esfuerzo físico", v: 0 },
+    ]},
+    { id: "alm4", dim: "puesto", texto: "Ves que un compañero levanta cajas de forma insegura. ¿Qué haces?", opciones: [
+      { t: "Le digo cómo hacerlo seguro para que no se lastime", v: 3 }, { t: "No me meto", v: 1 }, { t: "Me río", v: 0 }, { t: "Lo reporto sin decirle nada", v: 1 },
+    ]},
+  ],
+  "Administrativo": [
+    { id: "adm1", dim: "puesto", texto: "Te das cuenta de un error en un registro que YA entregaste. ¿Qué haces?", opciones: [
+      { t: "Aviso de inmediato y lo corrijo", v: 3 }, { t: "Lo corrijo callado para que nadie note", v: 1 }, { t: "No digo nada, ya está entregado", v: 0 }, { t: "Espero a ver si alguien lo nota", v: 0 },
+    ]},
+    { id: "adm2", dim: "puesto", texto: "Tienes varias tareas con la misma fecha límite. ¿Cómo te organizas?", opciones: [
+      { t: "Priorizo por importancia y urgencia, y avanzo una por una", v: 3 }, { t: "Hago primero la más fácil", v: 1 }, { t: "Hago todo al mismo tiempo", v: 0 }, { t: "Espero a que me digan cuál primero", v: 1 },
+    ]},
+    { id: "adm3", dim: "puesto", texto: "Manejas información confidencial de la empresa. ¿Qué haces con ella?", opciones: [
+      { t: "La cuido y no la comparto con nadie sin autorización", v: 3 }, { t: "La comento solo con compañeros de confianza", v: 0 }, { t: "No le doy importancia", v: 0 }, { t: "La comparto si me la piden", v: 1 },
+    ]},
+    { id: "adm4", dim: "puesto", texto: "¿Qué tan cómodo te sientes usando computadora (Excel, correo, etc.)?", opciones: [
+      { t: "Muy cómodo, los uso sin problema", v: 3 }, { t: "Me defiendo en lo básico", v: 2 }, { t: "Me cuesta pero aprendo", v: 1 }, { t: "Casi no sé usarlos", v: 0 },
+    ]},
+  ],
+  "Cocina / Producción": [
+    { id: "coc1", dim: "puesto", texto: "Antes de empezar a preparar alimentos, lo primero es…", opciones: [
+      { t: "Lavarme las manos y revisar que todo esté limpio", v: 3 }, { t: "Empezar rápido para no atrasarme", v: 0 }, { t: "Esperar instrucciones", v: 1 }, { t: "Revisar mi celular", v: 0 },
+    ]},
+    { id: "coc2", dim: "puesto", texto: "Se te cae al piso un utensilio que necesitas. ¿Qué haces?", opciones: [
+      { t: "Tomo otro limpio, o lo lavo y desinfecto antes de usarlo", v: 3 }, { t: "Lo recojo y sigo usándolo", v: 0 }, { t: "Lo limpio con un trapo rápido", v: 1 }, { t: "Lo uso, total se ve limpio", v: 0 },
+    ]},
+    { id: "coc3", dim: "puesto", texto: "Hay mucho pedido y el ritmo es rápido. ¿Cómo trabajas?", opciones: [
+      { t: "Mantengo el ritmo con orden e higiene", v: 3 }, { t: "Me apuro aunque descuide la limpieza", v: 0 }, { t: "Me estreso y me bloqueo", v: 1 }, { t: "Voy a mi paso aunque se atrase todo", v: 1 },
+    ]},
+    { id: "coc4", dim: "puesto", texto: "Notas que un alimento huele raro o se ve echado a perder. ¿Qué haces?", opciones: [
+      { t: "No lo uso y lo reporto", v: 3 }, { t: "Lo uso si no se ve tan mal", v: 0 }, { t: "Lo mezclo con otro para disimular", v: 0 }, { t: "Pregunto a un compañero si lo uso", v: 1 },
+    ]},
+  ],
+};
+
 /* Puente para el panel de RH (lee estos valores) */
-if (typeof window !== "undefined") { window.__EVAL = { PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS }; }
+if (typeof window !== "undefined") { window.__EVAL = { PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS, PREGUNTAS_PUESTO }; }
