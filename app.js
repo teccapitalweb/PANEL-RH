@@ -44,6 +44,10 @@ const DATA = {
     if (this.modo === "demo") return DEMO_INCIDENCIAS.filter(i => i.empresaId === empresaId);
     // TODO firebase: query(collection(db,`empresas/${empresaId}/incidencias`))
   },
+  vacaciones(empresaId) {
+    if (this.modo === "demo") return DEMO_VACACIONES.filter(v => v.empresaId === empresaId);
+    // TODO firebase: query(collection(db,`empresas/${empresaId}/vacaciones`))
+  },
 };
 
 /* ---------- Estado ---------- */
@@ -727,6 +731,7 @@ const horaTxt = ts => { const d = new Date(ts); return `${String(d.getHours()).p
 const horaActual = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 
 function evaluarAsistencia(c, eventos) {
+  if (vacacionHoy(c.id)) return { clase: "vac", txt: "Vacaciones", entrada: "—", salida: "—" };
   const incHoy = incidenciaHoy(c.id);
   if (incHoy) {
     const map = { "Vacaciones": ["vac", "Vacaciones"], "Incapacidad": ["inc", "Incapacidad"], "Permiso con goce": ["inc", "Permiso c/g"], "Permiso sin goce": ["inc", "Permiso s/g"] };
@@ -1186,9 +1191,266 @@ function openIncidenciaForm() {
   });
 }
 
+/* =====================================================================
+   FASE 2 · Parte 3 — Vacaciones (saldos conforme a la LFT)
+   ===================================================================== */
+
+/* Reutiliza la auditoría encadenada de INCID para las solicitudes */
+const VAC = {
+  init() {
+    DEMO_VACACIONES.forEach(v => {
+      v.auditoria = [];
+      INCID._audit(v, "Creada", v.motivo || "", `${fechaMenosDias(v.creadaDiasAtras ?? 1)}T09:00:00`);
+      if (v.estatus === "Aprobada" || v.estatus === "Rechazada") {
+        INCID._audit(v, v.estatus, v.decisionNota || "", `${fechaMenosDias(v.decisionDiasAtras ?? 0)}T12:00:00`);
+      }
+    });
+  },
+};
+
+/* Años completos de servicio desde el ingreso */
+function aniosServicio(ingreso) {
+  if (!ingreso) return 0;
+  const [y, m, d] = ingreso.split("-").map(Number);
+  const hoy = new Date();
+  let a = hoy.getFullYear() - y;
+  const cumplido = (hoy.getMonth() + 1 > m) || (hoy.getMonth() + 1 === m && hoy.getDate() >= d);
+  if (!cumplido) a -= 1;
+  return Math.max(0, a);
+}
+
+/* Días de vacaciones por ley — Art. 76 LFT (reforma "Vacaciones Dignas" 2023)
+   1→12, 2→14, 3→16, 4→18, 5→20, y +2 días por cada quinquenio posterior. */
+function diasVacacionesLFT(anios) {
+  if (anios < 1) return 0;
+  if (anios <= 4) return 10 + anios * 2;
+  return 20 + Math.floor((anios - 1) / 5) * 2;
+}
+
+function diasTomadosVac(colId) {
+  return DATA.vacaciones(state.empresa.id)
+    .filter(v => v.colaboradorId === colId && v.estatus === "Aprobada")
+    .reduce((s, v) => s + diasEntre(v.inicio, v.fin), 0);
+}
+
+function vacacionHoy(colId) {
+  const h = hoyISO();
+  return DATA.vacaciones(state.empresa.id).find(v => v.colaboradorId === colId && v.estatus === "Aprobada" && v.inicio <= h && v.fin >= h);
+}
+
+function renderVacaciones() {
+  const emp = state.empresa;
+  const cols = DATA.colaboradores(emp.id);
+  const reqs = DATA.vacaciones(emp.id);
+
+  const totalDerecho = cols.reduce((s, c) => s + diasVacacionesLFT(aniosServicio(c.ingreso)), 0);
+  const totalTomados = cols.reduce((s, c) => s + diasTomadosVac(c.id), 0);
+  const pend = reqs.filter(r => r.estatus === "Pendiente").length;
+  const stats = [
+    { v: totalDerecho, label: "Días por ley (equipo)", cls: "muted" },
+    { v: totalTomados, label: "Días tomados", cls: "good" },
+    { v: Math.max(0, totalDerecho - totalTomados), label: "Días disponibles", cls: "muted" },
+    { v: pend, label: "Solicitudes pendientes", cls: "warn" },
+  ];
+
+  const saldoRows = cols.map(c => {
+    const anios = aniosServicio(c.ingreso);
+    const derecho = diasVacacionesLFT(anios);
+    const tom = diasTomadosVac(c.id);
+    const disp = Math.max(0, derecho - tom);
+    const pct = derecho ? Math.min(100, Math.round(tom / derecho * 100)) : 0;
+    return `<tr data-saldo="${c.id}">
+      <td>${personCell(c)}</td>
+      <td>${anios} año(s)</td>
+      <td class="vac-ley">${derecho}</td>
+      <td class="vac-tom">${tom}</td>
+      <td class="vac-disp" style="color:${disp === 0 ? "var(--bad)" : "var(--text)"}">${disp}</td>
+      <td><span class="vac-bar"><span class="vac-bar__fill" style="width:${pct}%"></span></span><span class="vac-bar__lbl">${tom}/${derecho}</span></td>
+    </tr>`;
+  }).join("");
+
+  const reqsSorted = reqs.slice().sort((a, b) => (a.estatus === "Pendiente" ? 0 : 1) - (b.estatus === "Pendiente" ? 0 : 1) || (a.inicio < b.inicio ? 1 : -1));
+  const solRows = reqsSorted.length ? reqsSorted.map(v => {
+    const c = colabById(v.colaboradorId);
+    const acc = v.estatus === "Pendiente"
+      ? `<button class="ic-act ic-act--ok" data-aprobar-vac="${v.id}" title="Aprobar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${ICON_CHECK}</svg></button>
+         <button class="ic-act ic-act--no" data-detalle-vac="${v.id}" title="Revisar / rechazar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${ICON_X}</svg></button>`
+      : `<button class="btn btn--ghost btn--sm" data-detalle-vac="${v.id}">Ver</button>`;
+    return `<tr data-rowvac="${v.id}">
+      <td>${personCell(c)}</td>
+      <td>${periodoTxt(v)}</td>
+      <td>${diasEntre(v.inicio, v.fin)} día(s)</td>
+      <td>${estatusBadge(v.estatus)}</td>
+      <td class="ic-actions">${acc}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:34px">Sin solicitudes de vacaciones.</td></tr>`;
+
+  $("#view-vacaciones").innerHTML = `
+    <div class="page-head head-row">
+      <div><h1>Vacaciones</h1><p>Saldos conforme a la LFT y solicitudes de ${emp.nombre}.</p></div>
+      <button class="btn btn--primary btn--sm" id="btnNuevaVac"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Solicitar vacaciones</button>
+    </div>
+    <div class="stat-row">${stats.map(s => `<div class="stat"><div class="stat__v stat__v--${s.cls}">${s.v}</div><div class="stat__l">${s.label}</div></div>`).join("")}</div>
+
+    <div class="section-head"><h2>Saldos del equipo</h2></div>
+    <p class="lft-note">Cálculo conforme al Art. 76 de la LFT (reforma 2023): 12 días al primer año, +2 por año hasta el quinto, luego +2 por cada quinquenio.</p>
+    <div class="card"><div class="table-wrap"><table>
+      <thead><tr><th>Colaborador</th><th>Antigüedad</th><th>Por ley</th><th>Tomados</th><th>Disponibles</th><th>Avance</th></tr></thead>
+      <tbody>${saldoRows}</tbody></table></div></div>
+
+    <div class="section-head" style="margin-top:26px"><h2>Solicitudes</h2></div>
+    <div class="card"><div class="table-wrap"><table>
+      <thead><tr><th>Colaborador</th><th>Periodo</th><th>Días</th><th>Estatus</th><th></th></tr></thead>
+      <tbody>${solRows}</tbody></table></div></div>`;
+
+  $("#btnNuevaVac").addEventListener("click", openVacacionForm);
+  $$("#view-vacaciones [data-aprobar-vac]").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); aprobarVacacion(b.dataset.aprobarVac); }));
+  $$("#view-vacaciones [data-detalle-vac]").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); openVacacionDetalle(b.dataset.detalleVac); }));
+  $$("#view-vacaciones tbody tr[data-rowvac]").forEach(tr => tr.addEventListener("click", () => openVacacionDetalle(tr.dataset.rowvac)));
+}
+
+function openVacacionDetalle(id) {
+  const v = DEMO_VACACIONES.find(x => x.id === id); if (!v) return;
+  const c = colabById(v.colaboradorId);
+  $$(".modal-overlay").forEach(o => o.remove());
+  const integra = INCID.verificar(v);
+  const trailCls = a => a.accion === "Aprobada" ? "money" : (a.accion === "Rechazada" ? "bad" : "alta");
+  const trail = v.auditoria.map(a => `
+    <div class="tl-item tl-item--${trailCls(a)}">
+      <div class="tl-top"><span class="tl-tipo">${a.accion}</span><span class="tl-fecha">${fechaLarga(a.ts.slice(0, 10))} · ${horaTxt(a.ts)}</span></div>
+      ${a.nota ? `<div class="tl-detalle">${a.nota}</div>` : ""}
+      <div class="tl-detalle mono">#${a.hash}</div>
+    </div>`).join("");
+  const anios = c ? aniosServicio(c.ingreso) : 0;
+  const derecho = diasVacacionesLFT(anios);
+  const disp = Math.max(0, derecho - diasTomadosVac(v.colaboradorId));
+  const acciones = v.estatus === "Pendiente"
+    ? `<div class="field" style="margin-top:6px"><label class="field__label">Nota de resolución (opcional)</label><textarea class="input" id="vacNota" rows="2" placeholder="Comentario para el colaborador…"></textarea></div>
+       <div class="modal__foot" style="padding-left:0;padding-right:0;padding-bottom:0">
+         <button class="btn btn--danger" id="vacRechazar">Rechazar</button>
+         <button class="btn btn--primary" id="vacAprobar">Aprobar</button>
+       </div>`
+    : "";
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  ov.innerHTML = `
+    <div class="modal modal--sm" role="dialog" aria-modal="true" style="text-align:left">
+      <div class="modal__head"><h3>Solicitud de vacaciones</h3>
+        <button class="icon-btn" id="vacClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_X}</svg></button>
+      </div>
+      <div class="modal__body">
+        <div class="cell-person" style="margin-bottom:14px">
+          <div class="avatar">${avatarInner(c)}</div>
+          <div><div class="cell-person__name">${c ? c.nombre : v.colaboradorId}</div><div class="cell-person__sub">${c ? c.puesto : ""}</div></div>
+        </div>
+        <div class="inc-meta">
+          <div><span class="inc-meta__k">Periodo</span><span>${periodoTxt(v)}</span></div>
+          <div><span class="inc-meta__k">Días solicitados</span><span>${diasEntre(v.inicio, v.fin)}</span></div>
+          <div><span class="inc-meta__k">Estatus</span>${estatusBadge(v.estatus)}</div>
+          <div><span class="inc-meta__k">Disponibles (LFT)</span><span>${disp} de ${derecho}</span></div>
+        </div>
+        ${v.motivo ? `<p class="inc-motivo">${v.motivo}</p>` : ""}
+        <div class="sheet__section-title">Rastro de auditoría ${integra ? '<span class="audit-ok">✓ íntegro</span>' : '<span class="audit-bad">✗ alterado</span>'}</div>
+        <div class="timeline">${trail}</div>
+        ${acciones}
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#vacClose", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  if (v.estatus === "Pendiente") {
+    $("#vacAprobar", ov).addEventListener("click", () => aprobarVacacion(id, $("#vacNota", ov).value.trim()));
+    $("#vacRechazar", ov).addEventListener("click", () => rechazarVacacion(id, $("#vacNota", ov).value.trim()));
+  }
+}
+
+function aprobarVacacion(id, nota) {
+  const v = DEMO_VACACIONES.find(x => x.id === id);
+  if (!v || v.estatus !== "Pendiente") return;
+  v.estatus = "Aprobada";
+  INCID._audit(v, "Aprobada", nota || "");
+  // TODO firebase: updateDoc estatus + addDoc en auditoria (append-only)
+  $$(".modal-overlay").forEach(o => o.remove());
+  renderVacaciones();
+  toast(`Vacaciones de ${(colabById(v.colaboradorId) || {}).nombre?.split(" ")[0] || ""} aprobadas.`);
+}
+
+function rechazarVacacion(id, nota) {
+  const v = DEMO_VACACIONES.find(x => x.id === id);
+  if (!v || v.estatus !== "Pendiente") return;
+  v.estatus = "Rechazada";
+  INCID._audit(v, "Rechazada", nota || "Sin motivo especificado");
+  // TODO firebase: updateDoc estatus + addDoc en auditoria (append-only)
+  $$(".modal-overlay").forEach(o => o.remove());
+  renderVacaciones();
+  toast("Solicitud rechazada.");
+}
+
+function openVacacionForm() {
+  $$(".modal-overlay").forEach(o => o.remove());
+  const cols = DATA.colaboradores(state.empresa.id);
+  const colOpts = cols.length ? cols.map(c => ({ v: c.id, label: c.nombre })) : [{ v: "", label: "Sin colaboradores" }];
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  ov.innerHTML = `
+    <div class="modal modal--sm" role="dialog" aria-modal="true" style="text-align:left">
+      <div class="modal__head"><h3>Solicitar vacaciones</h3>
+        <button class="icon-btn" id="nvClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_X}</svg></button>
+      </div>
+      <div class="modal__body">
+        <div class="field"><label class="field__label">Colaborador *</label>${selectHTML("nvColab", colOpts[0].v, colOpts)}</div>
+        <div class="form-grid" style="margin-top:12px">
+          <div class="field"><label class="field__label">Inicio *</label>${datepickHTML("nvInicio", hoyISO())}</div>
+          <div class="field"><label class="field__label">Fin *</label>${datepickHTML("nvFin", hoyISO())}</div>
+        </div>
+        <div class="vac-hint" id="nvHint"></div>
+        <div class="field" style="margin-top:12px"><label class="field__label">Motivo</label><textarea class="input" id="nv-motivo" rows="2" placeholder="Opcional…"></textarea></div>
+        <p class="form-error" id="nvError"></p>
+      </div>
+      <div class="modal__foot"><button class="btn btn--ghost" id="nvCancel">Cancelar</button><button class="btn btn--primary" id="nvSave">Solicitar</button></div>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add("is-on"));
+  bindSelect(ov); bindDatepick(ov);
+  const refrescaHint = () => {
+    const colId = $(".select[data-name='nvColab']", ov).dataset.value;
+    const ini = $(".datepick[data-name='nvInicio']", ov).dataset.value;
+    const fin = $(".datepick[data-name='nvFin']", ov).dataset.value;
+    const c = colabById(colId);
+    if (!c || !ini || !fin || fin < ini) { $("#nvHint", ov).textContent = ""; return; }
+    const dias = diasEntre(ini, fin);
+    const disp = Math.max(0, diasVacacionesLFT(aniosServicio(c.ingreso)) - diasTomadosVac(colId));
+    const excede = dias > disp;
+    $("#nvHint", ov).innerHTML = `<span class="${excede ? "vac-hint--bad" : ""}">${dias} día(s) solicitados · ${disp} disponibles${excede ? " · excede el saldo" : ""}</span>`;
+  };
+  refrescaHint();
+  ov.addEventListener("click", refrescaHint, true);
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#nvClose", ov).addEventListener("click", close);
+  $("#nvCancel", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  $("#nvSave", ov).addEventListener("click", () => {
+    const colId = $(".select[data-name='nvColab']", ov).dataset.value;
+    const inicio = $(".datepick[data-name='nvInicio']", ov).dataset.value;
+    const fin = $(".datepick[data-name='nvFin']", ov).dataset.value;
+    const err = $("#nvError", ov);
+    if (!colId) { err.textContent = "Selecciona un colaborador."; return; }
+    if (!inicio || !fin) { err.textContent = "Indica el periodo."; return; }
+    if (fin < inicio) { err.textContent = "La fecha fin no puede ser antes del inicio."; return; }
+    const v = { id: "vac" + Date.now(), empresaId: state.empresa.id, colaboradorId: colId, inicio, fin, motivo: $("#nv-motivo", ov).value.trim(), estatus: "Pendiente", auditoria: [] };
+    INCID._audit(v, "Creada", v.motivo);
+    DEMO_VACACIONES.push(v);
+    // TODO firebase: addDoc(collection(db,`empresas/${state.empresa.id}/vacaciones`), v)
+    close();
+    renderVacaciones();
+    toast("Solicitud de vacaciones registrada (pendiente).");
+  });
+}
+
 /* ---------- Placeholders de módulos ---------- */
 const MODS = {
-  vacaciones:  ["Vacaciones", "Saldos conforme a la LFT, solicitudes y aprobaciones con trazabilidad.", `<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>`],
   nom035:      ["NOM-035", "Cuestionarios oficiales, aplicación, resultados y evidencia descargable. Tu diferenciador de cumplimiento — el know-how ya está en tus consultoras.", `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>`],
   config:      ["Configuración", "Empresas, roles, usuarios y conexión con Firebase.", `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>`],
 };
@@ -1213,6 +1475,7 @@ function go(view) {
   if (view === "organigrama") renderOrganigrama();
   if (view === "asistencia") renderAsistencia();
   if (view === "incidencias") renderIncidencias();
+  if (view === "vacaciones") renderVacaciones();
   if (MODS[view]) renderPlaceholder(view);
   $("#sidebar").classList.remove("is-open");
   $("#scrim").classList.remove("is-on");
@@ -1253,6 +1516,7 @@ function bootApp() {
   $("#app").classList.add("is-on");
   LEDGER.init();
   INCID.init();
+  VAC.init();
   renderEmpresaMenu();
   go("dashboard");
 }

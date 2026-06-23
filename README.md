@@ -52,18 +52,24 @@ empresas/{empresaId}/eventos/{eventoId}   ← ledger inmutable (auditoría)
   - **Flujo de aprobación**: Pendiente → Aprobada / Rechazada, con nota de resolución.
   - **Rastro de auditoría inmutable** por incidencia (cadena de hashes, verificable como íntegra).
   - **Resumen** (pendientes/aprobadas/rechazadas) y filtros por estatus.
-  - **Enlace con Asistencia**: una incapacidad/permiso/vacaciones aprobada que cubra el día se refleja automáticamente en la tabla de asistencia.
+  - **Enlace con Asistencia**: una incapacidad/permiso aprobada que cubra el día se refleja en la tabla de asistencia.
+- **Fase 2 · Parte 3 — Vacaciones:**
+  - **Saldos por colaborador conforme al Art. 76 LFT** (reforma 2023): 12 días al primer año, +2 por año hasta el quinto, luego +2 por quinquenio. Cálculo automático desde la antigüedad.
+  - **Solicitud y aprobación** (Pendiente → Aprobada / Rechazada) con el mismo rastro de auditoría inmutable y aviso de saldo disponible.
+  - **Resumen del equipo** (días por ley / tomados / disponibles / pendientes) y barra de avance por persona.
+  - **Enlace con Asistencia**: una vacación aprobada que cubra el día aparece en la tabla de asistencia y descuenta del saldo.
 - Dashboard con KPIs por empresa.
-- Navegación de los módulos restantes (Vacaciones, NOM-035) como placeholders.
+- Navegación del módulo restante (NOM-035) como placeholder.
 - Responsive hasta 375px (sidebar en drawer).
 
 ## Lo que NO se tocó / sigue
-- **Fase 2 pendiente**: Vacaciones (saldos LFT con solicitud/aprobación) → Calendario de ausencias del equipo.
+- **Fase 2 pendiente**: Calendario de ausencias del equipo (vista de mes que agrega asistencia, incidencias y vacaciones).
 - Nómina (marcada "Pronto") — fase final, vía PAC con el `TimbradoProvider`.
-- Módulos en placeholder (Vacaciones, NOM-035): pendientes de construir sobre este shell.
-- Auth/datos reales: hoy en modo demo. Foto y documentos en memoria; QR representativo; geo simulada; ledger y auditoría en memoria. En producción → Firebase (Storage, Geolocation + haversine, colecciones append-only). Todo marcado con TODO.
+- Módulo en placeholder (NOM-035): pendiente de construir sobre este shell.
+- Auth/datos reales: hoy en modo demo. Foto y documentos en memoria; QR representativo; geo simulada; ledger, incidencias y vacaciones en memoria. En producción → Firebase (Storage, Geolocation + haversine, colecciones append-only). Todo marcado con TODO.
 
-Orden sugerido: **Vacaciones → Calendario → NOM-035 → (al final) Nómina**.
+Orden sugerido: **Calendario de ausencias → NOM-035 → (al final) Nómina**.
+
 
 
 

@@ -93,7 +93,7 @@ _h("c009", [
   { fecha: "2023-12-01", tipo: "Salario", detalle: "$17,000 MXN → $20,000 MXN" },
 ]);
 
-const DEMO_TIPOS_INCIDENCIA = ["Falta", "Retardo", "Permiso con goce", "Permiso sin goce", "Incapacidad", "Vacaciones"];
+const DEMO_TIPOS_INCIDENCIA = ["Falta", "Retardo", "Permiso con goce", "Permiso sin goce", "Incapacidad"];
 
 /* =====================================================================
    FASE 2 — Asistencia: turnos, geo de sucursal y ledger semilla
@@ -149,7 +149,6 @@ const _fd = n => { const d = new Date(_hoyBase); d.setDate(d.getDate() + n); ret
    creadaDiasAtras / decisionDiasAtras: hace cuántos días ocurrió cada acción. */
 const DEMO_INCIDENCIAS = [
   // TEC CAPITAL
-  { id: "inc1", empresaId: "tec-capital", colaboradorId: "c005", tipo: "Vacaciones",        inicio: _fd(-1), fin: _fd(3),   motivo: "Vacaciones anuales (12 días LFT).", estatus: "Aprobada",  creadaDiasAtras: 6, decisionDiasAtras: 5, decisionNota: "Autorizado por dirección." },
   { id: "inc2", empresaId: "tec-capital", colaboradorId: "c003", tipo: "Retardo",           inicio: _fd(0),  fin: _fd(0),   motivo: "Retardo por tráfico en la entrada.", estatus: "Pendiente", creadaDiasAtras: 0 },
   { id: "inc3", empresaId: "tec-capital", colaboradorId: "c002", tipo: "Permiso con goce",  inicio: _fd(2),  fin: _fd(2),   motivo: "Trámite personal (medio día).", estatus: "Pendiente", creadaDiasAtras: 1 },
   { id: "inc4", empresaId: "tec-capital", colaboradorId: "c004", tipo: "Permiso sin goce",  inicio: _fd(-10), fin: _fd(-10), motivo: "Asunto familiar.", estatus: "Aprobada",  creadaDiasAtras: 12, decisionDiasAtras: 11, decisionNota: "OK." },
@@ -159,5 +158,20 @@ const DEMO_INCIDENCIAS = [
   { id: "inc7", empresaId: "dermalysse", colaboradorId: "c007", tipo: "Permiso con goce",   inicio: _fd(5),  fin: _fd(5),   motivo: "Capacitación externa.", estatus: "Pendiente", creadaDiasAtras: 0 },
   // FISIOTECK
   { id: "inc8", empresaId: "fisioteck",  colaboradorId: "c010", tipo: "Incapacidad",        inicio: _fd(-2), fin: _fd(1),   motivo: "Incapacidad IMSS.", estatus: "Aprobada", creadaDiasAtras: 3, decisionDiasAtras: 2, decisionNota: "Documento validado." },
-  { id: "inc9", empresaId: "fisioteck",  colaboradorId: "c009", tipo: "Vacaciones",         inicio: _fd(7),  fin: _fd(11),  motivo: "Vacaciones programadas.", estatus: "Pendiente", creadaDiasAtras: 1 },
+];
+
+/* =====================================================================
+   FASE 2 · Parte 3 — Vacaciones (saldos LFT + solicitud/aprobación)
+   ===================================================================== */
+const DEMO_VACACIONES = [
+  // TEC CAPITAL
+  { id: "vac1", empresaId: "tec-capital", colaboradorId: "c005", inicio: _fd(-1),  fin: _fd(3),   motivo: "Vacaciones anuales.", estatus: "Aprobada",  creadaDiasAtras: 7,  decisionDiasAtras: 6,  decisionNota: "Autorizado por dirección." },
+  { id: "vac2", empresaId: "tec-capital", colaboradorId: "c001", inicio: _fd(-45), fin: _fd(-41), motivo: "Puente vacacional.", estatus: "Aprobada",  creadaDiasAtras: 60, decisionDiasAtras: 58, decisionNota: "OK." },
+  { id: "vac3", empresaId: "tec-capital", colaboradorId: "c002", inicio: _fd(20),  fin: _fd(24),  motivo: "Viaje familiar.", estatus: "Pendiente", creadaDiasAtras: 1 },
+  { id: "vac4", empresaId: "tec-capital", colaboradorId: "c004", inicio: _fd(-120),fin: _fd(-114),motivo: "Vacaciones.", estatus: "Aprobada",  creadaDiasAtras: 130, decisionDiasAtras: 128 },
+  // DERMALYSSE
+  { id: "vac5", empresaId: "dermalysse", colaboradorId: "c007", inicio: _fd(30),  fin: _fd(34),  motivo: "Vacaciones programadas.", estatus: "Pendiente", creadaDiasAtras: 0 },
+  // FISIOTECK
+  { id: "vac6", empresaId: "fisioteck",  colaboradorId: "c009", inicio: _fd(-30), fin: _fd(-23), motivo: "Vacaciones.", estatus: "Aprobada",  creadaDiasAtras: 40, decisionDiasAtras: 38 },
+  { id: "vac7", empresaId: "fisioteck",  colaboradorId: "c009", inicio: _fd(7),   fin: _fd(11),  motivo: "Vacaciones programadas.", estatus: "Pendiente", creadaDiasAtras: 1 },
 ];
