@@ -1,23 +1,71 @@
-# Evalua RH — Evaluación de Ingreso
+# Evalua RH — Evaluación de ingreso + Panel de Selección
 
-Herramienta de **exámenes de selección** para que Recursos Humanos evalúe aspirantes y facilite la decisión de contratación.
+Un solo repo con **dos páginas** que se enlazan entre sí. Hechas en HTML/CSS/JS
+puro, listas para **GitHub Pages** (arrastrar todos los archivos a la raíz del repo).
 
-## Dos partes (mismo backend de Firebase)
-1. **Kiosko del aspirante** (este repo, público) — `index.html`. El aspirante responde tipo cajero de comida rápida: una pregunta por pantalla, puro botón, mínimo tecleo. Captura sus datos, contesta el examen y recibe un popup de "evaluación concluida · te contactamos en 2-3 días hábiles".
-2. **Panel de RH** (privado, con login) — *siguiente entrega*. Verá las respuestas, calificará por dimensión y mostrará fortalezas / áreas de oportunidad y banderas. El texto del popup final será editable desde ahí.
+## Qué es
 
-## Dimensiones evaluadas
-Personalidad laboral · Juicio situacional · Honestidad e integridad · Orientación al servicio · Tolerancia al estrés · Bienestar psicosocial · Intelecto y razonamiento · Atención y reacción (prueba cronometrada) · Disponibilidad.
+- **Kiosko del aspirante** (`index.html`) — examen estilo kiosko (una pregunta por
+  pantalla, mínimo tecleo). 36 reactivos + prueba de reacción. Califica por
+  dimensión y guarda al aspirante.
+- **Panel de RH** (`panel.html`) — privado. Lista de aspirantes con ranking,
+  semáforo y banderas; detalle con calificación por dimensión, entrevista con guía
+  "en qué fijarte", respuestas con porqué, y decisión (Contratar / En revisión /
+  Descartar) con notas. También edita el mensaje final del kiosko.
 
-## Estructura
-- `index.html` — kiosko (barra + progreso + escenario).
-- `styles.css` — tokens del estándar TEC CAPITAL (Space Grotesk / DM Sans, glass, día/noche), escala kiosko.
-- `data.js` — `CONFIG` (textos editables), catálogos, `DIMENSIONES` y banco de `PREGUNTAS` con metadata de calificación (cada opción trae su favorabilidad `v`).
-- `app.js` — flujo bienvenida → datos → instrucciones → preguntas → reacción → fin. Al concluir **calcula el resultado por dimensión** y lo guarda.
-- `firebase-config.js` — misma config para kiosko y panel.
+## Cómo se entra al panel
 
-## Calificación (ya lista para el panel)
-Cada respuesta aporta `v` (0-3, más alto = mejor) a su dimensión. `calcularResultado()` saca el porcentaje por dimensión, lo clasifica (Fortaleza / Promedio / Área de oportunidad) y levanta banderas si Honestidad o Juicio salen bajos. La prueba de reacción promedia los tiempos y los convierte a puntaje.
+En el kiosko, abajo a la izquierda, hay un botón discreto **"Tec Capital Group"**.
+Al hacer clic pide **contraseña**; con la correcta salta a `panel.html` (no la
+vuelve a pedir en esa sesión). El aspirante nunca ve esto.
 
-## Demo → producción
-Hoy en demo: el resultado se guarda en `localStorage` (clave `examenrh_aspirantes`) para que el panel lo lea en un mismo despliegue. En producción se reemplaza por `addDoc` a la colección `aspirantes` (marcado con `// TODO firebase`). Deploy: GitHub Pages.
+### Contraseña
+
+Está en `data.js`:
+
+    const RH_PASS = "teccapital2026"; // CÁMBIALA aquí
+
+> Es una proteccion ligera (va en el codigo del navegador, visible en el codigo
+> fuente). Sirve para que un aspirante no entre por error. La seguridad real
+> vendra con Firebase Auth (ver pendientes).
+
+## Archivos
+
+| Archivo              | Para qué |
+|----------------------|----------|
+| `index.html`         | Kiosko del aspirante |
+| `styles.css`         | Estilos del kiosko |
+| `app.js`             | Lógica del kiosko (flujo, calificación, guardado, acceso RH) |
+| `panel.html`         | Panel de RH |
+| `panel.css`          | Estilos del panel |
+| `panel.js`           | Lógica del panel (lista, detalle, decisión, config) |
+| `data.js`            | Banco de preguntas + metadata + contraseña (compartido) |
+| `firebase-config.js` | Config de Firebase (placeholder) |
+
+`data.js` y `firebase-config.js` los usan **las dos páginas**.
+
+## Despliegue (GitHub Pages)
+
+1. Sube **todos** los archivos a la raíz del repo.
+2. Settings → Pages → Branch `main` / `root`.
+3. La URL queda en `index.html` (kiosko). El panel queda en `.../panel.html`.
+
+## Datos de ejemplo
+
+Mientras no se conecte Firebase, el panel muestra **5 aspirantes de ejemplo** para
+que se vea funcionando. En cuanto un aspirante real termine el examen en el mismo
+sitio, aparecera en el panel (mismo origen -> mismo almacenamiento).
+
+## Pendiente: conectar Firebase
+
+Todo esta marcado en el codigo con `// TODO firebase`:
+
+- **Kiosko** -> al terminar, `addDoc(collection(db,"aspirantes"), registro)`.
+- **Panel** -> leer `aspirantes`, actualizar decision/notas, y guardar el mensaje
+  final en `config/evaluacion`.
+- **Acceso** -> cambiar la contraseña local por **Firebase Auth** (acceso real de RH).
+
+## Notas de diseño
+
+Tipografias Space Grotesk / DM Sans / JetBrains Mono, glassmorphism, iconos SVG,
+selects y date pickers propios, modo dia/noche con persistencia.

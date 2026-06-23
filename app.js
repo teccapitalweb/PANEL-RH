@@ -119,7 +119,9 @@ function renderDatos() {
         <div class="field"><label class="field__label">Fecha de nacimiento</label>${datepickHTML("fNac", d.nacimiento, "2000-01")}</div>
         <div class="field"><label class="field__label">Género</label>${chips("genero", GENEROS, d.genero)}</div>
         <div class="field"><label class="field__label">Escolaridad</label>${chips("escolaridad", ESCOLARIDAD, d.escolaridad)}</div>
-        <div class="field"><label class="field__label">Puesto al que aspiras *</label>${chips("puesto", PUESTOS, d.puesto)}</div>
+        <div class="field"><label class="field__label">Puesto al que aspiras *</label>
+          ${chips("puesto", [...PUESTOS, "Otro"], PUESTOS.includes(d.puesto) ? d.puesto : (d.puesto ? "Otro" : ""))}
+          <input class="input" id="puestoOtro" placeholder="¿Cuál puesto?" value="${(!PUESTOS.includes(d.puesto) && d.puesto) ? d.puesto : ""}" ${(!PUESTOS.includes(d.puesto) && d.puesto) ? "" : "hidden"} style="margin-top:9px"></div>
         <p class="form-error" id="dErr"></p>
       </div>
       <div class="k-actions">
@@ -130,16 +132,18 @@ function renderDatos() {
   bindDatepick($("#stage"));
   $$(".choices").forEach(g => $$(".choice", g).forEach(c => c.addEventListener("click", () => {
     $$(".choice", g).forEach(x => x.classList.toggle("is-sel", x === c));
+    if (g.dataset.name === "puesto") { const po = $("#puestoOtro"); if (po) { const esOtro = c.dataset.v === "Otro"; po.hidden = !esOtro; if (esOtro) po.focus(); } }
   })));
   $("#dBack").addEventListener("click", () => { state.fase = "bienvenida"; render(); });
   $("#dNext").addEventListener("click", () => {
     const get = n => { const g = $(`.choices[data-name='${n}'] .choice.is-sel`); return g ? g.dataset.v : ""; };
     const nombre = $("#fNombre").value.trim(), tel = soloDigitos($("#fTel").value), correo = $("#fMail").value.trim();
-    const puesto = get("puesto");
+    let puesto = get("puesto");
     if (!nombre) return err("Escribe tu nombre completo.");
     if (tel.length < 10) return err("El teléfono debe tener 10 dígitos.");
     if (!esEmail(correo)) return err("Escribe un correo válido.");
     if (!puesto) return err("Elige el puesto al que aspiras.");
+    if (puesto === "Otro") { const po = $("#puestoOtro").value.trim(); if (!po) return err("Escribe el puesto al que aspiras."); puesto = po; }
     state.datos = {
       nombre, tel, correo, curp: $("#fCurp").value.trim().toUpperCase(),
       nacimiento: $(".datepick[data-name='fNac']").dataset.value || "",
@@ -181,29 +185,41 @@ function renderPregunta() {
       <div class="q-tag">${tag}</div>
       <div class="q-text">${q.texto}</div>
       <div class="optgrid">
-        ${q.opciones.map((o, i) => `<button type="button" class="opt ${prev && prev.optIdx === i ? "is-sel" : ""}" data-i="${i}">
+        ${q.opciones.map((o, i) => `<button type="button" class="opt ${prev && prev.optIdx === i ? "is-sel" : ""}" data-i="${i}" data-otro="${o.otro ? 1 : 0}">
           <span class="opt__dot"></span><span class="opt__t">${o.t}</span></button>`).join("")}
       </div>
-      <div class="porque" id="porqueBox" ${prev ? "" : "hidden"}>
-        <label class="porque__label" for="porqueTA">¿Por qué elegiste esa respuesta?</label>
-        <textarea class="input porque__ta" id="porqueTA" rows="3" placeholder="Cuéntanos en pocas palabras (opcional).">${prev && prev.porque ? prev.porque : ""}</textarea>
+      <div class="otro" id="otroBox" ${prev && prev.otro ? "" : "hidden"}>
+        <label class="porque__label" for="otroTA">Especifica tu respuesta</label>
+        <input class="input" id="otroTA" placeholder="Escribe aquí…" value="${prev && prev.otroTexto ? prev.otroTexto.replace(/"/g, "&quot;") : ""}">
       </div>
+      ${q.sinPorque ? "" : `<div class="porque" id="porqueBox" ${prev ? "" : "hidden"}>
+        <label class="porque__label" for="porqueTA">${q.porqueLabel || "¿Por qué elegiste esa respuesta?"}</label>
+        <textarea class="input porque__ta" id="porqueTA" rows="3" placeholder="Cuéntanos en pocas palabras (opcional).">${prev && prev.porque ? prev.porque : ""}</textarea>
+      </div>`}
+      <p class="form-error" id="qErr"></p>
       <div class="k-actions">
         <button class="btn btn--ghost" id="qBack">${state.qIdx === 0 ? "Atrás" : "Anterior"}</button>
         <button class="btn btn--primary btn--lg" id="qNext" ${prev ? "" : "hidden"}>Continuar</button>
         <span class="q-hint" id="qHint" ${prev ? "hidden" : ""}>Toca una opción para responder</span>
       </div>
     </div>`;
-  const mostrarPorque = () => { $("#porqueBox").hidden = false; $("#qNext").hidden = false; $("#qHint").hidden = true; };
-  $$("#stage .opt").forEach(b => b.addEventListener("click", () => {
+  const seleccionar = b => {
     $$("#stage .opt").forEach(x => x.classList.toggle("is-sel", x === b));
-    mostrarPorque();
-    const ta = $("#porqueTA"); if (ta) ta.focus();
-  }));
+    $("#qNext").hidden = false; $("#qHint").hidden = true; $("#qErr").textContent = "";
+    const esOtro = b.dataset.otro === "1";
+    const ob = $("#otroBox"); if (ob) { ob.hidden = !esOtro; if (esOtro) { const t = $("#otroTA"); if (t) t.focus(); } }
+    const pb = $("#porqueBox"); if (pb) pb.hidden = false;
+  };
+  $$("#stage .opt").forEach(b => b.addEventListener("click", () => seleccionar(b)));
   $("#qNext").addEventListener("click", () => {
     const sel = $("#stage .opt.is-sel"); if (!sel) return;
-    const i = Number(sel.dataset.i);
-    state.respuestas[q.id] = { optIdx: i, v: q.opciones[i].v, dim: q.dim, correcta: !!q.opciones[i].correcta, info: !!q.info, porque: $("#porqueTA").value.trim() };
+    const i = Number(sel.dataset.i); const opt = q.opciones[i];
+    let otroTexto = "";
+    if (opt.otro) {
+      otroTexto = ($("#otroTA").value || "").trim();
+      if (!otroTexto) { $("#qErr").textContent = "Escribe tu respuesta en 'Otro'."; return; }
+    }
+    state.respuestas[q.id] = { optIdx: i, v: opt.v, dim: q.dim, correcta: !!opt.correcta, info: !!q.info, otro: !!opt.otro, otroTexto, porque: $("#porqueTA") ? $("#porqueTA").value.trim() : "" };
     avanzarPregunta();
   });
   $("#qBack").addEventListener("click", () => {
@@ -380,9 +396,37 @@ function applyTheme(t) {
   try { localStorage.setItem("examenrh-theme", t); } catch (e) {}
 }
 
+/* ---------- Acceso de RH (contraseña → panel) ---------- */
+function abrirAccesoRH() {
+  const ov = document.createElement("div"); ov.className = "modal-overlay";
+  ov.innerHTML = `<div class="modal modal--pw" role="dialog" aria-modal="true">
+    <div class="modal__icon" style="background:var(--accent-soft);color:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+    <h3>Tec Capital Group</h3>
+    <p>Acceso de Recursos Humanos. Escribe la contraseña para ver el panel.</p>
+    <label class="field__label" for="rhPw" style="text-align:left;display:block">Contraseña</label>
+    <input class="input" id="rhPw" type="password" placeholder="••••••••" autocomplete="off">
+    <div class="pw-error" id="rhErr"></div>
+    <div class="pw-actions"><button class="btn btn--ghost" id="rhCancel">Cancelar</button><button class="btn btn--primary" id="rhEntrar">Entrar</button></div>
+  </div>`;
+  document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  const intentar = () => {
+    if ($("#rhPw", ov).value === RH_PASS) { try { sessionStorage.setItem("examenrh_rh_ok", "1"); } catch (e) {} window.location.href = "panel.html"; }
+    else { $("#rhErr", ov).textContent = "Contraseña incorrecta."; $("#rhPw", ov).value = ""; $("#rhPw", ov).focus(); }
+  };
+  $("#rhCancel", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  $("#rhEntrar", ov).addEventListener("click", intentar);
+  $("#rhPw", ov).addEventListener("keydown", e => { if (e.key === "Enter") intentar(); });
+  setTimeout(() => { const i = $("#rhPw", ov); if (i) i.focus(); }, 60);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   try { applyTheme(localStorage.getItem("examenrh-theme") || "light"); } catch (e) { applyTheme("light"); }
+  // Mensaje final editable por RH (se guarda desde el panel)
+  try { const c = JSON.parse(localStorage.getItem("examenrh_config") || "null"); if (c) { if (c.mensajeFinTitulo) CONFIG.mensajeFinTitulo = c.mensajeFinTitulo; if (c.mensajeFinCuerpo) CONFIG.mensajeFinCuerpo = c.mensajeFinCuerpo; } } catch (e) {}
   $("#themeBtn").addEventListener("click", () => applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
+  const _rh = $("#rhAccess"); if (_rh) _rh.addEventListener("click", abrirAccesoRH);
   document.addEventListener("click", () => $$(".datepick").forEach(d => d.classList.remove("is-open")));
   render();
 });

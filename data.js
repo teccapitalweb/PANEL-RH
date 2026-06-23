@@ -15,6 +15,11 @@ const CONFIG = {
   mensajeFinCuerpo: "Gracias por tu tiempo. El área de Recursos Humanos revisará tus respuestas y te contactará en un plazo de 2 a 3 días hábiles.",
 };
 
+/* Contraseña de acceso al panel de RH — CÁMBIALA aquí.
+   Nota: es una protección ligera (visible en el código). La seguridad real
+   vendrá con Firebase Auth; esto solo evita que un aspirante entre por error. */
+const RH_PASS = "teccapital2026";
+
 /* Catálogos para la captura de datos (estilo botón, mínimo tecleo) */
 const PUESTOS = ["Atención a cliente", "Cajero(a)", "Ventas", "Almacén", "Administrativo", "Cocina / Producción"];
 const ESCOLARIDAD = ["Secundaria", "Preparatoria", "Técnico", "Licenciatura", "Posgrado"];
@@ -24,6 +29,7 @@ const GENEROS = ["Masculino", "Femenino", "Otro"];
 const DIMENSIONES = {
   perfil: "Sobre ti",
   personalidad: "Personalidad laboral",
+  social: "Habilidades sociales",
   intelecto: "Intelecto y razonamiento",
   juicio: "Juicio situacional",
   servicio: "Orientación al servicio",
@@ -46,11 +52,14 @@ const L = [
    Las marcadas con info:true son solo de perfil: se capturan (opción + porqué) pero NO califican. */
 const PREGUNTAS = [
   // 1) Sobre ti — calentamiento
+  { id: "pf0", dim: "perfil", info: true, sinPorque: true, texto: "¿Cómo te enteraste de esta vacante?", opciones: [
+    { t: "Bolsa de trabajo o internet", v: 2 }, { t: "Redes sociales", v: 2 }, { t: "Me la recomendaron", v: 2 }, { t: "Pasé por el lugar", v: 2 }, { t: "Ya conocía la empresa", v: 2 }, { t: "Otro medio", v: 2, otro: true },
+  ]},
   { id: "pf1", dim: "perfil", info: true, texto: "¿Qué tipo de actividades disfrutas más?", opciones: [
-    { t: "Trabajar en equipo", v: 2 }, { t: "Resolver problemas", v: 2 }, { t: "Atender y ayudar a personas", v: 2 }, { t: "Tareas prácticas o manuales", v: 2 }, { t: "Organizar y planear", v: 2 },
+    { t: "Trabajar en equipo", v: 2 }, { t: "Resolver problemas", v: 2 }, { t: "Atender y ayudar a personas", v: 2 }, { t: "Tareas prácticas o manuales", v: 2 }, { t: "Organizar y planear", v: 2 }, { t: "Otra", v: 2, otro: true },
   ]},
   { id: "pf2", dim: "perfil", info: true, texto: "¿Qué te apasiona o disfrutas fuera del trabajo?", opciones: [
-    { t: "El deporte", v: 2 }, { t: "La familia", v: 2 }, { t: "Aprender cosas nuevas", v: 2 }, { t: "El arte o la música", v: 2 }, { t: "Los negocios", v: 2 },
+    { t: "El deporte", v: 2 }, { t: "La familia", v: 2 }, { t: "Aprender cosas nuevas", v: 2 }, { t: "El arte o la música", v: 2 }, { t: "Los negocios", v: 2 }, { t: "Otra cosa", v: 2, otro: true },
   ]},
   { id: "pf3", dim: "perfil", texto: "¿Qué es lo más importante para ti en un trabajo?", opciones: [
     { t: "Crecer y aprender", v: 3 }, { t: "Un buen ambiente y equipo", v: 3 }, { t: "Estabilidad y seguridad", v: 2 }, { t: "Principalmente el sueldo", v: 1 },
@@ -60,6 +69,12 @@ const PREGUNTAS = [
   ]},
   { id: "pf5", dim: "perfil", texto: "¿Cómo te describirías?", opciones: [
     { t: "Siempre busco mejorar", v: 3 }, { t: "Cumplo bien con lo que me piden", v: 2 }, { t: "Hago lo necesario para salir del paso", v: 1 },
+  ]},
+  { id: "pf6", dim: "perfil", info: true, porqueLabel: "Cuéntanos un ejemplo de cómo la usas.", texto: "¿Cuál dirías que es tu mayor fortaleza?", opciones: [
+    { t: "Responsabilidad", v: 2 }, { t: "Trabajo en equipo", v: 2 }, { t: "Aprendo rápido", v: 2 }, { t: "Trato con la gente", v: 2 }, { t: "Organización", v: 2 }, { t: "Resolver problemas", v: 2 }, { t: "Otra", v: 2, otro: true },
+  ]},
+  { id: "pf7", dim: "perfil", info: true, porqueLabel: "¿Cómo la estás trabajando o mejorando?", texto: "¿Y una debilidad o algo que estés mejorando?", opciones: [
+    { t: "Me cuesta delegar", v: 2 }, { t: "Soy impaciente", v: 2 }, { t: "Me distraigo a veces", v: 2 }, { t: "Me cuesta decir que no", v: 2 }, { t: "Hablar en público", v: 2 }, { t: "Soy muy autocrítico(a)", v: 2 }, { t: "Otra", v: 2, otro: true },
   ]},
 
   // 1.5) Filtro inicial — motivación y preparación (abierta)
@@ -72,6 +87,10 @@ const PREGUNTAS = [
   { id: "per1", dim: "personalidad", texto: "Termino lo que empiezo, aunque se complique.", opciones: L },
   { id: "per2", dim: "personalidad", texto: "Me gusta aprender cosas nuevas de forma constante.", opciones: L },
   { id: "per3", dim: "personalidad", texto: "Soy puntual y cumplo con los horarios que me asignan.", opciones: L },
+
+  // 2.5) Habilidades sociales
+  { id: "soc1", dim: "social", texto: "Me gusta convivir y socializar con mis compañeros de trabajo.", opciones: L },
+  { id: "soc2", dim: "social", texto: "Se me facilita relacionarme y hacer equipo con gente nueva.", opciones: L },
 
   // 3) Intelecto y razonamiento (tienen respuesta correcta)
   { id: "int1", dim: "intelecto", texto: "¿Qué número sigue en la serie?  2, 4, 8, 16, ___", opciones: [
@@ -164,3 +183,6 @@ const NIVEL_DIM = [
 
 /* Dimensiones críticas: si salen bajas, levantan bandera para RH */
 const CRITICAS = ["honestidad", "juicio"];
+
+/* Puente para el panel de RH (lee estos valores) */
+if (typeof window !== "undefined") { window.__EVAL = { PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS }; }
