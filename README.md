@@ -70,12 +70,18 @@ empresas/{empresaId}/eventos/{eventoId}   ← ledger inmutable (auditoría)
 ## Fase 2 — COMPLETA ✓
 Asistencia (checador + ledger + turnos) · Incidencias (aprobación + auditoría) · Vacaciones (saldos LFT) · Calendario de ausencias. Todo multi-tenant y sobre el principio de bitácora inmutable.
 
-## Lo que NO se tocó / sigue
-- **Fase 3 — Cumplimiento**: NOM-035 (cuestionarios, resultados, evidencia) y alertas de vencimientos. Tu diferenciador.
-- **Fase 4 — Portal del colaborador** y **Fase 5 — Nómina** (vía PAC con el `TimbradoProvider`, al final).
-- Auth/datos reales: hoy en modo demo. Foto/documentos en memoria; QR representativo; geo simulada; ledger, incidencias y vacaciones en memoria. En producción → Firebase (Storage, Geolocation + haversine, colecciones append-only). Todo marcado con TODO.
+## Fase 3 — Cumplimiento ✓
+- **NOM-035-STPS-2018**: campaña de evaluación con el **cuestionario oficial (Guía de Referencia II)** — escala Likert de 5 niveles y las 4 categorías de la norma. Motor de calificación que normaliza a la escala 0-184 y clasifica el **nivel de riesgo** (Nulo / Bajo / Medio / Alto / Muy alto) global y por categoría, con la **acción sugerida** que marca la norma. Tablero del centro de trabajo (distribución de riesgo + promedio por categoría), tabla por colaborador y aplicación del cuestionario en línea.
+- **Vencimientos**: alertas de reevaluación NOM-035, fin de contratos, exámenes médicos y capacitaciones, con estatus **Vencido / Próximo (30 días) / Vigente** y filtros.
 
-Orden sugerido: **NOM-035 → Portal del colaborador → (al final) Nómina**.
+## Lo que NO se tocó / sigue
+- **Fase 4 — Portal del colaborador** (vista propia del empleado: sus datos, recibos, saldo de vacaciones, solicitudes).
+- **Fase 5 — Nómina** (vía PAC con el `TimbradoProvider`, al final).
+- Auth/datos reales: hoy en modo demo. Foto/documentos en memoria; QR representativo; geo simulada; ledger, incidencias, vacaciones y respuestas NOM-035 en memoria. En producción → Firebase (Storage, Geolocation + haversine, colecciones append-only). Todo marcado con TODO.
+- Nota NOM-035: el cuestionario incluye un conjunto representativo de reactivos con la estructura y escala oficiales; el banco completo de la Guía II (46) / Guía III (72) se carga igual.
+
+Orden sugerido: **Portal del colaborador → conectar Firebase → (al final) Nómina**.
+
 
 
 

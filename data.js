@@ -175,3 +175,72 @@ const DEMO_VACACIONES = [
   { id: "vac6", empresaId: "fisioteck",  colaboradorId: "c009", inicio: _fd(-30), fin: _fd(-23), motivo: "Vacaciones.", estatus: "Aprobada",  creadaDiasAtras: 40, decisionDiasAtras: 38 },
   { id: "vac7", empresaId: "fisioteck",  colaboradorId: "c009", inicio: _fd(7),   fin: _fd(11),  motivo: "Vacaciones programadas.", estatus: "Pendiente", creadaDiasAtras: 1 },
 ];
+
+/* =====================================================================
+   FASE 3 — Cumplimiento: NOM-035 (cuestionario oficial) + Vencimientos
+   ---------------------------------------------------------------------
+   Cuestionario basado en la Guía de Referencia II de la NOM-035-STPS-2018
+   (categorías y dominios oficiales; conjunto representativo de reactivos).
+   Escala Likert de 5 niveles. Reactivos "inverso: true" están redactados
+   en positivo (a mayor frecuencia, menor riesgo).
+   ===================================================================== */
+
+const NOM035_OPCIONES = ["Siempre", "Casi siempre", "Algunas veces", "Casi nunca", "Nunca"];
+
+const NOM035_CUESTIONARIO = [
+  { categoria: "Ambiente de trabajo", items: [
+    { id: "q1", texto: "El espacio donde trabajo me permite realizar mis actividades de manera segura e higiénica.", inverso: true },
+    { id: "q2", texto: "El ruido, la temperatura o la iluminación del lugar me dificultan concentrarme.", inverso: false },
+    { id: "q3", texto: "Cuento con el equipo y las herramientas necesarias para hacer mi trabajo.", inverso: true },
+  ]},
+  { categoria: "Factores propios de la actividad", items: [
+    { id: "q4", texto: "Mi carga de trabajo es excesiva para el tiempo del que dispongo.", inverso: false },
+    { id: "q5", texto: "Debo atender varias tareas o asuntos urgentes al mismo tiempo.", inverso: false },
+    { id: "q6", texto: "Puedo decidir cómo organizar y realizar mi trabajo.", inverso: true },
+    { id: "q7", texto: "Recibo la capacitación necesaria para realizar bien mis funciones.", inverso: true },
+  ]},
+  { categoria: "Organización del tiempo de trabajo", items: [
+    { id: "q8", texto: "Trabajo tiempo extra con frecuencia más allá de mi jornada.", inverso: false },
+    { id: "q9", texto: "Mi trabajo me impide atender asuntos familiares o personales.", inverso: false },
+    { id: "q10", texto: "Puedo tomar pausas o descansos durante mi jornada.", inverso: true },
+  ]},
+  { categoria: "Liderazgo y relaciones en el trabajo", items: [
+    { id: "q11", texto: "Mi jefe me da instrucciones claras y me apoya cuando lo necesito.", inverso: true },
+    { id: "q12", texto: "Recibo reconocimiento cuando hago bien mi trabajo.", inverso: true },
+    { id: "q13", texto: "Existe buena comunicación y colaboración con mis compañeros.", inverso: true },
+    { id: "q14", texto: "Cuando hay conflictos en el trabajo, se resuelven de forma respetuosa.", inverso: true },
+    { id: "q15", texto: "He presenciado o sufrido malos tratos, hostigamiento o acoso en el trabajo.", inverso: false },
+  ]},
+];
+
+/* Campaña de evaluación por empresa (fecha de aplicación y de reevaluación) */
+const DEMO_NOM035_CAMPANAS = [
+  { empresaId: "tec-capital", guia: "Guía de Referencia II", aplicada: _fd(-95),  vence: _fd(270) },
+  { empresaId: "dermalysse",  guia: "Guía de Referencia II", aplicada: _fd(-340), vence: _fd(22)  },
+  { empresaId: "fisioteck",   guia: "Guía de Referencia II", aplicada: _fd(-60),  vence: _fd(305) },
+];
+
+/* Respuestas sembradas (app.js genera el vector de respuestas según el perfil de riesgo) */
+const DEMO_NOM035_SEED = [
+  { empresaId: "tec-capital", colaboradorId: "c001", target: "Bajo" },
+  { empresaId: "tec-capital", colaboradorId: "c002", target: "Medio" },
+  { empresaId: "tec-capital", colaboradorId: "c003", target: "Alto" },
+  { empresaId: "tec-capital", colaboradorId: "c004", target: "Bajo" },
+  { empresaId: "tec-capital", colaboradorId: "c005", target: "Medio" },
+  // c006 queda pendiente de responder
+  { empresaId: "dermalysse",  colaboradorId: "c007", target: "Medio" },
+  { empresaId: "dermalysse",  colaboradorId: "c008", target: "Bajo" },
+  { empresaId: "fisioteck",   colaboradorId: "c009", target: "Bajo" },
+  { empresaId: "fisioteck",   colaboradorId: "c010", target: "Alto" },
+];
+
+/* Vencimientos (la reevaluación NOM-035 se agrega automáticamente desde la campaña) */
+const DEMO_VENCIMIENTOS = [
+  { id: "v1", empresaId: "tec-capital", tipo: "Contrato determinado", colaboradorId: "c006", titulo: "Fin de contrato determinado", fecha: _fd(12) },
+  { id: "v2", empresaId: "tec-capital", tipo: "Contrato determinado", colaboradorId: "c003", titulo: "Fin de contrato determinado", fecha: _fd(-5) },
+  { id: "v3", empresaId: "tec-capital", tipo: "Examen médico", colaboradorId: null, titulo: "Exámenes médicos periódicos (equipo)", fecha: _fd(25) },
+  { id: "v4", empresaId: "tec-capital", tipo: "Capacitación", colaboradorId: null, titulo: "Curso de protección civil", fecha: _fd(70) },
+  { id: "v5", empresaId: "dermalysse",  tipo: "Contrato capacitación", colaboradorId: "c008", titulo: "Fin de contrato de capacitación inicial", fecha: _fd(8) },
+  { id: "v6", empresaId: "fisioteck",   tipo: "Periodo de prueba", colaboradorId: "c010", titulo: "Fin de periodo de prueba", fecha: _fd(-2) },
+  { id: "v7", empresaId: "fisioteck",   tipo: "Capacitación", colaboradorId: null, titulo: "Curso de primeros auxilios", fecha: _fd(40) },
+];

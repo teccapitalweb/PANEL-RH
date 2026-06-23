@@ -48,10 +48,18 @@ const DATA = {
     if (this.modo === "demo") return DEMO_VACACIONES.filter(v => v.empresaId === empresaId);
     // TODO firebase: query(collection(db,`empresas/${empresaId}/vacaciones`))
   },
+  nom035(empresaId) {
+    if (this.modo === "demo") return DEMO_NOM035_SEED.filter(r => r.empresaId === empresaId);
+    // TODO firebase: query(collection(db,`empresas/${empresaId}/nom035`))
+  },
+  vencimientos(empresaId) {
+    if (this.modo === "demo") return DEMO_VENCIMIENTOS.filter(v => v.empresaId === empresaId);
+    // TODO firebase: query(collection(db,`empresas/${empresaId}/vencimientos`))
+  },
 };
 
 /* ---------- Estado ---------- */
-const state = { empresa: DATA.empresas()[0], filtro: "Todos", busqueda: "", incFiltro: "Todas", calY: new Date().getFullYear(), calM: new Date().getMonth(), calFiltro: "Todas" };
+const state = { empresa: DATA.empresas()[0], filtro: "Todos", busqueda: "", incFiltro: "Todas", calY: new Date().getFullYear(), calM: new Date().getMonth(), calFiltro: "Todas", vencFiltro: "Todos" };
 
 /* ---------- Helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1561,9 +1569,288 @@ function openDiaDetalle(iso) {
   }));
 }
 
+/* =====================================================================
+   FASE 3 — Cumplimiento: NOM-035-STPS-2018
+   ===================================================================== */
+
+const NOM035_ITEMS = NOM035_CUESTIONARIO.flatMap(c => c.items.map(it => ({ ...it, categoria: c.categoria })));
+
+const NOM035_NIVELES = {
+  "Nulo":     { cls: "ok",   accion: "No se requieren acciones adicionales; dar seguimiento en la próxima evaluación." },
+  "Bajo":     { cls: "ok",   accion: "Difundir la política de prevención de riesgos psicosociales y reforzar buenas prácticas." },
+  "Medio":    { cls: "warn", accion: "Revisar la política y el programa de prevención; realizar campañas de sensibilización y ajustes en las áreas señaladas." },
+  "Alto":     { cls: "bad",  accion: "Analizar cada categoría y dominio, intervenir los factores detectados y canalizar a atención clínica cuando aplique." },
+  "Muy alto": { cls: "bad",  accion: "Acciones inmediatas: análisis específico, intervención y atención clínica; evaluar el entorno organizacional." },
+};
+const NIVEL_ORDEN = ["Nulo", "Bajo", "Medio", "Alto", "Muy alto"];
+
+/* Valor del reactivo (0-4): a más riesgo, mayor valor */
+function valorItem(item, idx) { return item.inverso ? idx : (4 - idx); }
+function nivelDePct(p) {
+  if (p < 0.11) return "Nulo";
+  if (p < 0.245) return "Bajo";
+  if (p < 0.38) return "Medio";
+  if (p < 0.49) return "Alto";
+  return "Muy alto";
+}
+function nivelBadge(n) {
+  const cls = { ok: "ok", warn: "off", bad: "alert" }[NOM035_NIVELES[n].cls];
+  return `<span class="badge badge--${cls}">${n}</span>`;
+}
+
+function resultadoNOM(resp) {
+  let sum = 0, max = 0;
+  NOM035_ITEMS.forEach(it => { if (resp[it.id] != null) { sum += valorItem(it, resp[it.id]); max += 4; } });
+  const pct = max ? sum / max : 0;
+  const porCategoria = NOM035_CUESTIONARIO.map(cat => {
+    let s = 0, m = 0;
+    cat.items.forEach(it => { if (resp[it.id] != null) { s += valorItem(it, resp[it.id]); m += 4; } });
+    const p = m ? s / m : 0;
+    return { categoria: cat.categoria, pct: p, nivel: nivelDePct(p) };
+  });
+  return { sum, max, pct, score: Math.round(pct * 184), nivel: nivelDePct(pct), porCategoria };
+}
+
+/* Genera respuestas sembradas según el perfil de riesgo objetivo */
+const PERFIL_BASE = { "Nulo": 0.25, "Bajo": 0.7, "Medio": 1.3, "Alto": 1.85, "Muy alto": 2.6 };
+const NOM = {
+  init() {
+    DEMO_NOM035_SEED.forEach(r => {
+      const resp = {};
+      NOM035_ITEMS.forEach(it => {
+        const base = PERFIL_BASE[r.target] ?? 2;
+        const j = (hashStr(it.id + r.colaboradorId).charCodeAt(0) % 3 - 1) * 0.7;
+        const v = Math.max(0, Math.min(4, Math.round(base + j)));
+        resp[it.id] = item_inverso(it) ? v : 4 - v;
+      });
+      r.respuestas = resp;
+      r.completado = true;
+    });
+  },
+};
+function item_inverso(it) { return !!it.inverso; }
+
+function nomRecord(colId) {
+  return DEMO_NOM035_SEED.find(r => r.empresaId === state.empresa.id && r.colaboradorId === colId);
+}
+function resultadoDe(colId) {
+  const r = nomRecord(colId);
+  return (r && r.completado) ? resultadoNOM(r.respuestas) : null;
+}
+
+function renderNom035() {
+  const emp = state.empresa;
+  const cols = DATA.colaboradores(emp.id);
+  const camp = DEMO_NOM035_CAMPANAS.find(c => c.empresaId === emp.id);
+  const resultados = cols.map(c => ({ c, r: resultadoDe(c.id) }));
+  const completados = resultados.filter(x => x.r);
+  const venceDias = camp ? Math.round((new Date(camp.vence) - new Date(hoyISO())) / 86400000) : null;
+  const riesgoAlto = completados.filter(x => x.r.nivel === "Alto" || x.r.nivel === "Muy alto").length;
+
+  const stats = [
+    { v: `${completados.length}/${cols.length}`, label: "Cuestionarios aplicados", cls: "muted" },
+    { v: riesgoAlto, label: "En riesgo alto / muy alto", cls: riesgoAlto ? "bad" : "good" },
+    { v: camp ? `${venceDias}d` : "—", label: "Reevaluación NOM-035", cls: venceDias != null && venceDias <= 30 ? "warn" : "muted" },
+  ];
+
+  // Distribución de niveles
+  const dist = NIVEL_ORDEN.map(n => ({ n, c: completados.filter(x => x.r.nivel === n).length }));
+  const distMax = Math.max(1, ...dist.map(d => d.c));
+  const distHTML = dist.map(d => `
+    <div class="dist-row">
+      <span class="dist-row__lbl">${nivelBadge(d.n)}</span>
+      <span class="dist-bar"><span class="dist-bar__fill nivel-fill--${NOM035_NIVELES[d.n].cls}" style="width:${d.c / distMax * 100}%"></span></span>
+      <span class="dist-row__n">${d.c}</span>
+    </div>`).join("");
+
+  // Promedio por categoría
+  const cats = NOM035_CUESTIONARIO.map((cat, i) => {
+    const ps = completados.map(x => x.r.porCategoria[i].pct);
+    const prom = ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : 0;
+    return { categoria: cat.categoria, pct: prom, nivel: nivelDePct(prom) };
+  });
+  const catHTML = cats.map(c => `
+    <div class="catbar">
+      <div class="catbar__top"><span>${c.categoria}</span>${nivelBadge(c.nivel)}</div>
+      <span class="catbar__track"><span class="catbar__fill nivel-fill--${NOM035_NIVELES[c.nivel].cls}" style="width:${Math.round(c.pct * 100)}%"></span></span>
+    </div>`).join("");
+
+  const filas = resultados.map(({ c, r }) => `
+    <tr data-nom="${c.id}">
+      <td>${personCell(c)}</td>
+      <td>${r ? '<span class="badge badge--ok">Completado</span>' : '<span class="badge badge--off">Pendiente</span>'}</td>
+      <td>${r ? nivelBadge(r.nivel) : "—"}</td>
+      <td>${r ? r.score : "—"}</td>
+      <td class="ic-actions">${r
+        ? `<button class="btn btn--ghost btn--sm" data-vernom="${c.id}">Ver resultado</button>`
+        : `<button class="btn btn--primary btn--sm" data-respnom="${c.id}">Responder</button>`}</td>
+    </tr>`).join("");
+
+  $("#view-nom035").innerHTML = `
+    <div class="page-head"><h1>NOM-035</h1><p>Factores de riesgo psicosocial · ${emp.nombre}${camp ? ` · ${camp.guia}` : ""}</p></div>
+    <div class="stat-row stat-row--3">${stats.map(s => `<div class="stat"><div class="stat__v stat__v--${s.cls}">${s.v}</div><div class="stat__l">${s.label}</div></div>`).join("")}</div>
+    <div class="nom-grid">
+      <div class="card"><div class="section-head" style="margin-top:0"><h2>Distribución de riesgo</h2></div>${completados.length ? distHTML : '<p class="muted-empty">Aún no hay cuestionarios aplicados.</p>'}</div>
+      <div class="card"><div class="section-head" style="margin-top:0"><h2>Promedio por categoría</h2></div>${completados.length ? catHTML : '<p class="muted-empty">Sin datos.</p>'}</div>
+    </div>
+    <div class="section-head" style="margin-top:26px"><h2>Resultados por colaborador</h2></div>
+    <div class="card"><div class="table-wrap"><table>
+      <thead><tr><th>Colaborador</th><th>Estatus</th><th>Nivel de riesgo</th><th>Puntaje</th><th></th></tr></thead>
+      <tbody>${filas}</tbody></table></div></div>
+    <p class="lft-note">Puntaje normalizado a la escala de la Guía de Referencia II (0-184). Niveles: Nulo &lt;20 · Bajo 20-44 · Medio 45-69 · Alto 70-89 · Muy alto ≥90.</p>`;
+
+  $$("#view-nom035 [data-vernom]").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); openNomResultado(b.dataset.vernom); }));
+  $$("#view-nom035 [data-respnom]").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); openNomCuestionario(b.dataset.respnom); }));
+  $$("#view-nom035 tbody tr[data-nom]").forEach(tr => tr.addEventListener("click", () => { resultadoDe(tr.dataset.nom) ? openNomResultado(tr.dataset.nom) : openNomCuestionario(tr.dataset.nom); }));
+}
+
+function openNomResultado(colId) {
+  const c = colabById(colId); const r = resultadoDe(colId);
+  if (!c || !r) return;
+  $$(".modal-overlay").forEach(o => o.remove());
+  const cats = r.porCategoria.map(pc => `
+    <div class="catbar">
+      <div class="catbar__top"><span>${pc.categoria}</span>${nivelBadge(pc.nivel)}</div>
+      <span class="catbar__track"><span class="catbar__fill nivel-fill--${NOM035_NIVELES[pc.nivel].cls}" style="width:${Math.round(pc.pct * 100)}%"></span></span>
+    </div>`).join("");
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  ov.innerHTML = `
+    <div class="modal modal--sm" role="dialog" aria-modal="true" style="text-align:left">
+      <div class="modal__head"><h3>Resultado NOM-035</h3>
+        <button class="icon-btn" id="nrClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_X}</svg></button>
+      </div>
+      <div class="modal__body">
+        <div class="cell-person" style="margin-bottom:14px"><div class="avatar">${avatarInner(c)}</div>
+          <div><div class="cell-person__name">${c.nombre}</div><div class="cell-person__sub">${c.puesto}</div></div></div>
+        <div class="nom-result">
+          <div><div class="nom-result__lbl">Nivel de riesgo</div>${nivelBadge(r.nivel)}</div>
+          <div><div class="nom-result__lbl">Puntaje (esc. 0-184)</div><div class="nom-result__score">${r.score}</div></div>
+        </div>
+        <div class="sheet__section-title">Por categoría</div>
+        ${cats}
+        <div class="sheet__section-title">Acción sugerida</div>
+        <p class="inc-motivo">${NOM035_NIVELES[r.nivel].accion}</p>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#nrClose", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+}
+
+function openNomCuestionario(colId) {
+  const c = colabById(colId); if (!c) return;
+  $$(".modal-overlay").forEach(o => o.remove());
+  const respuestas = {};
+  const secciones = NOM035_CUESTIONARIO.map((cat, ci) => `
+    <div class="lik-cat">${cat.categoria}</div>
+    ${cat.items.map(it => `
+      <div class="lik-item" data-q="${it.id}">
+        <div class="lik-q">${it.texto}</div>
+        <div class="lik-opts">${NOM035_OPCIONES.map((o, i) => `<button type="button" class="lik-opt" data-v="${i}">${o}</button>`).join("")}</div>
+      </div>`).join("")}`).join("");
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  ov.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" style="text-align:left">
+      <div class="modal__head"><h3>Cuestionario NOM-035 · ${c.nombre.split(" ")[0]}</h3>
+        <button class="icon-btn" id="ncClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_X}</svg></button>
+      </div>
+      <div class="modal__body">
+        <p class="lik-intro">Responde con qué frecuencia ocurre cada situación en tu trabajo.</p>
+        ${secciones}
+        <p class="form-error" id="ncError"></p>
+      </div>
+      <div class="modal__foot"><button class="btn btn--ghost" id="ncCancel">Cancelar</button><button class="btn btn--primary" id="ncSave">Enviar respuestas</button></div>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#ncClose", ov).addEventListener("click", close);
+  $("#ncCancel", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  $$(".lik-item", ov).forEach(item => {
+    const qid = item.dataset.q;
+    $$(".lik-opt", item).forEach(opt => opt.addEventListener("click", () => {
+      respuestas[qid] = Number(opt.dataset.v);
+      $$(".lik-opt", item).forEach(o => o.classList.toggle("is-sel", o === opt));
+    }));
+  });
+  $("#ncSave", ov).addEventListener("click", () => {
+    if (Object.keys(respuestas).length < NOM035_ITEMS.length) { $("#ncError", ov).textContent = "Responde todos los reactivos antes de enviar."; return; }
+    let rec = nomRecord(colId);
+    if (!rec) { rec = { empresaId: state.empresa.id, colaboradorId: colId, target: "—" }; DEMO_NOM035_SEED.push(rec); }
+    rec.respuestas = respuestas; rec.completado = true;
+    // TODO firebase: addDoc/updateDoc en empresas/{id}/nom035 (respuestas + resultado)
+    close();
+    renderNom035();
+    toast("Cuestionario enviado y evaluado.");
+  });
+}
+
+/* =====================================================================
+   FASE 3 — Vencimientos / alertas de cumplimiento
+   ===================================================================== */
+function vencEstatus(fecha) {
+  const dias = Math.round((new Date(fecha) - new Date(hoyISO())) / 86400000);
+  if (dias < 0) return { clase: "falta", txt: "Vencido", dias };
+  if (dias <= 30) return { clase: "ret", txt: "Próximo", dias };
+  return { clase: "ok", txt: "Vigente", dias };
+}
+function listaVencimientos() {
+  const emp = state.empresa.id;
+  const base = DATA.vencimientos(emp).map(v => ({ ...v }));
+  const camp = DEMO_NOM035_CAMPANAS.find(c => c.empresaId === emp);
+  if (camp) base.push({ id: "nom-" + emp, empresaId: emp, tipo: "NOM-035", colaboradorId: null, titulo: `Reevaluación NOM-035 (${camp.guia})`, fecha: camp.vence });
+  return base.sort((a, b) => a.fecha < b.fecha ? -1 : 1);
+}
+
+function renderVencimientos() {
+  const all = listaVencimientos();
+  const conEst = all.map(v => ({ ...v, est: vencEstatus(v.fecha) }));
+  const nBy = t => conEst.filter(v => v.est.txt === t).length;
+  const stats = [
+    { v: nBy("Vencido"), label: "Vencidos", cls: "bad" },
+    { v: nBy("Próximo"), label: "Próximos (30 días)", cls: "warn" },
+    { v: nBy("Vigente"), label: "Vigentes", cls: "good" },
+  ];
+  const chips = [["Todos", "Todos"], ["Vencido", "Vencidos"], ["Próximo", "Próximos"]];
+  let list = state.vencFiltro === "Todos" ? conEst : conEst.filter(v => v.est.txt === state.vencFiltro);
+
+  const filas = list.length ? list.map(v => {
+    const c = v.colaboradorId ? colabById(v.colaboradorId) : null;
+    const dias = v.est.dias;
+    const restante = dias < 0 ? `Hace ${Math.abs(dias)} día(s)` : (dias === 0 ? "Hoy" : `En ${dias} día(s)`);
+    return `<tr>
+      <td><span class="ic-tipo ic-tipo--${venceTipoCls(v.tipo)}">${v.tipo}</span></td>
+      <td><div class="venc-asunto">${v.titulo}</div>${c ? `<div class="venc-sub">${c.nombre}</div>` : ""}</td>
+      <td>${fechaLarga(v.fecha)}</td>
+      <td>${restante}</td>
+      <td><span class="badge badge--${v.est.clase}">${v.est.txt}</span></td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:34px">Sin vencimientos en este filtro.</td></tr>`;
+
+  $("#view-vencimientos").innerHTML = `
+    <div class="page-head"><h1>Vencimientos</h1><p>Reevaluaciones, contratos y capacitaciones por vencer en ${state.empresa.nombre}.</p></div>
+    <div class="stat-row stat-row--3">${stats.map(s => `<div class="stat"><div class="stat__v stat__v--${s.cls}">${s.v}</div><div class="stat__l">${s.label}</div></div>`).join("")}</div>
+    <div class="toolbar"><div class="chip-filter" id="vencFilter">${chips.map(([f, l]) => `<button class="chip ${state.vencFiltro === f ? "is-active" : ""}" data-vf="${f}">${l}</button>`).join("")}</div></div>
+    <div class="card"><div class="table-wrap"><table>
+      <thead><tr><th>Tipo</th><th>Asunto</th><th>Fecha</th><th>Plazo</th><th>Estatus</th></tr></thead>
+      <tbody>${filas}</tbody></table></div></div>`;
+
+  $$("#vencFilter .chip").forEach(ch => ch.addEventListener("click", () => { state.vencFiltro = ch.dataset.vf; renderVencimientos(); }));
+}
+function venceTipoCls(t) {
+  if (t === "NOM-035") return "incap";
+  if (t.includes("Contrato") || t.includes("prueba") || t.includes("capacitación")) return "permiso";
+  if (t.includes("médico")) return "falta";
+  return "retardo";
+}
+
 /* ---------- Placeholders de módulos ---------- */
 const MODS = {
-  nom035:      ["NOM-035", "Cuestionarios oficiales, aplicación, resultados y evidencia descargable. Tu diferenciador de cumplimiento — el know-how ya está en tus consultoras.", `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>`],
   config:      ["Configuración", "Empresas, roles, usuarios y conexión con Firebase.", `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>`],
 };
 function renderPlaceholder(view) {
@@ -1589,6 +1876,8 @@ function go(view) {
   if (view === "incidencias") renderIncidencias();
   if (view === "vacaciones") renderVacaciones();
   if (view === "calendario") renderCalendario();
+  if (view === "nom035") renderNom035();
+  if (view === "vencimientos") renderVencimientos();
   if (MODS[view]) renderPlaceholder(view);
   $("#sidebar").classList.remove("is-open");
   $("#scrim").classList.remove("is-on");
@@ -1630,6 +1919,7 @@ function bootApp() {
   LEDGER.init();
   INCID.init();
   VAC.init();
+  NOM.init();
   renderEmpresaMenu();
   go("dashboard");
 }
