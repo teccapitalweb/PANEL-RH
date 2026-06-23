@@ -47,16 +47,23 @@ empresas/{empresaId}/eventos/{eventoId}   ← ledger inmutable (auditoría)
   - **Turnos** configurables (entrada/salida/tolerancia) con asignación por colaborador.
   - **Ledger inmutable**: cada checada genera un evento encadenado por hash; bitácora de auditoría que **verifica la integridad** de la cadena.
   - **Tabla de asistencia del día** con estatus calculado contra el turno: A tiempo / Retardo (min) / Falta, respetando Vacaciones e Incidencia.
+- **Fase 2 · Parte 2 — Incidencias:**
+  - Registro de **faltas, retardos, permisos (con/sin goce), incapacidades y vacaciones** con periodo y motivo.
+  - **Flujo de aprobación**: Pendiente → Aprobada / Rechazada, con nota de resolución.
+  - **Rastro de auditoría inmutable** por incidencia (cadena de hashes, verificable como íntegra).
+  - **Resumen** (pendientes/aprobadas/rechazadas) y filtros por estatus.
+  - **Enlace con Asistencia**: una incapacidad/permiso/vacaciones aprobada que cubra el día se refleja automáticamente en la tabla de asistencia.
 - Dashboard con KPIs por empresa.
-- Navegación de los módulos restantes (Incidencias, Vacaciones, NOM-035) como placeholders.
+- Navegación de los módulos restantes (Vacaciones, NOM-035) como placeholders.
 - Responsive hasta 375px (sidebar en drawer).
 
 ## Lo que NO se tocó / sigue
-- **Fase 2 pendiente**: Incidencias (faltas/permisos/incapacidades con aprobación) → Vacaciones (saldos LFT) → Calendario de ausencias.
+- **Fase 2 pendiente**: Vacaciones (saldos LFT con solicitud/aprobación) → Calendario de ausencias del equipo.
 - Nómina (marcada "Pronto") — fase final, vía PAC con el `TimbradoProvider`.
-- Módulos en placeholder (Incidencias, Vacaciones, NOM-035): pendientes de construir sobre este shell.
-- Auth/datos reales: hoy en modo demo. Foto y documentos viven en memoria; el QR es representativo y la geo se simula dentro del radio. En producción → Firebase (Storage, Geolocation real + haversine, eventos append-only). Todo marcado con TODO.
+- Módulos en placeholder (Vacaciones, NOM-035): pendientes de construir sobre este shell.
+- Auth/datos reales: hoy en modo demo. Foto y documentos en memoria; QR representativo; geo simulada; ledger y auditoría en memoria. En producción → Firebase (Storage, Geolocation + haversine, colecciones append-only). Todo marcado con TODO.
 
-Orden sugerido: **Incidencias → Vacaciones → Calendario → NOM-035 → (al final) Nómina**.
+Orden sugerido: **Vacaciones → Calendario → NOM-035 → (al final) Nómina**.
+
 
 

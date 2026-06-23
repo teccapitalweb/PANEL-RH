@@ -601,3 +601,51 @@ tbody tr:hover { background: var(--surface-2); }
 .ledger-row__tipo { color: var(--muted); font-weight: 400; }
 .ledger-row__sub { font-size: .73rem; color: var(--muted); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem; letter-spacing: -.02em; }
+
+/* =====================================================================
+   FASE 2 · Parte 2 — Incidencias
+   ===================================================================== */
+
+textarea.input { height: auto; min-height: 58px; padding: 10px 14px; line-height: 1.45; resize: vertical; font-family: inherit; }
+
+.head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+@media (max-width: 560px) { .head-row { flex-direction: column; } }
+
+/* Mini-stats */
+.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+@media (max-width: 620px) { .stat-row { grid-template-columns: repeat(2, 1fr); } }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px 16px; box-shadow: var(--shadow); }
+.stat__v { font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; line-height: 1; }
+.stat__v--warn { color: var(--warn); }
+.stat__v--good { color: var(--good); }
+.stat__v--bad { color: var(--bad); }
+.stat__v--muted { color: var(--text); }
+.stat__l { font-size: .76rem; color: var(--muted); margin-top: 5px; }
+
+/* Pill de tipo con punto de color */
+.ic-tipo { display: inline-flex; align-items: center; gap: 7px; font-size: .8rem; font-weight: 500; }
+.ic-tipo::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.ic-tipo--falta::before   { background: var(--bad); }
+.ic-tipo--retardo::before { background: var(--warn); }
+.ic-tipo--permiso::before { background: var(--accent); }
+.ic-tipo--incap::before   { background: #0ea5e9; }
+.ic-tipo--vacc::before    { background: var(--good); }
+
+/* Acciones inline en la tabla */
+.ic-actions { white-space: nowrap; }
+.ic-act { width: 32px; height: 32px; border-radius: 9px; display: inline-grid; place-items: center; border: 1px solid var(--border); background: var(--surface); cursor: pointer; transition: all .14s; vertical-align: middle; }
+.ic-act + .ic-act { margin-left: 6px; }
+.ic-act svg { width: 16px; height: 16px; }
+.ic-act--ok { color: var(--good); }
+.ic-act--ok:hover { background: color-mix(in srgb, var(--good) 14%, transparent); border-color: var(--good); }
+.ic-act--no { color: var(--bad); }
+.ic-act--no:hover { background: color-mix(in srgb, var(--bad) 14%, transparent); border-color: var(--bad); }
+
+/* Detalle */
+.inc-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; padding: 14px; background: var(--surface-2); border-radius: var(--r-md); }
+.inc-meta > div { display: flex; flex-direction: column; gap: 5px; }
+.inc-meta__k { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.inc-motivo { font-size: .88rem; color: var(--text); margin: 14px 2px 4px; line-height: 1.5; }
+.audit-ok { font-size: .72rem; font-weight: 600; color: var(--good); }
+.audit-bad { font-size: .72rem; font-weight: 600; color: var(--bad); }
+.tl-item--bad::before { background: var(--bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 16%, transparent); }

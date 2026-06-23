@@ -40,10 +40,14 @@ const DATA = {
     if (this.modo === "demo") return LEDGER.eventos(empresaId);
     // TODO firebase: query(collection(db,`empresas/${empresaId}/eventos`))
   },
+  incidencias(empresaId) {
+    if (this.modo === "demo") return DEMO_INCIDENCIAS.filter(i => i.empresaId === empresaId);
+    // TODO firebase: query(collection(db,`empresas/${empresaId}/incidencias`))
+  },
 };
 
 /* ---------- Estado ---------- */
-const state = { empresa: DATA.empresas()[0], filtro: "Todos", busqueda: "" };
+const state = { empresa: DATA.empresas()[0], filtro: "Todos", busqueda: "", incFiltro: "Todas" };
 
 /* ---------- Helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -723,6 +727,12 @@ const horaTxt = ts => { const d = new Date(ts); return `${String(d.getHours()).p
 const horaActual = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 
 function evaluarAsistencia(c, eventos) {
+  const incHoy = incidenciaHoy(c.id);
+  if (incHoy) {
+    const map = { "Vacaciones": ["vac", "Vacaciones"], "Incapacidad": ["inc", "Incapacidad"], "Permiso con goce": ["inc", "Permiso c/g"], "Permiso sin goce": ["inc", "Permiso s/g"] };
+    const m = map[incHoy.tipo];
+    if (m) return { clase: m[0], txt: m[1], entrada: "—", salida: "—" };
+  }
   if (c.estatus === "Vacaciones") return { clase: "vac", txt: "Vacaciones", entrada: "—", salida: "—" };
   if (c.estatus === "Incidencia") return { clase: "inc", txt: "Incidencia", entrada: "—", salida: "—" };
   const evs = eventos.filter(e => e.colaboradorId === c.id);
@@ -943,9 +953,241 @@ function openTurnoModal() {
   });
 }
 
+/* =====================================================================
+   FASE 2 · Parte 2 — Incidencias (faltas, retardos, permisos, incapacidades)
+   ===================================================================== */
+
+/* Auditoría inmutable por incidencia (cadena de hashes) */
+const INCID = {
+  init() {
+    DEMO_INCIDENCIAS.forEach(inc => {
+      inc.auditoria = [];
+      this._audit(inc, "Creada", inc.motivo || "", `${fechaMenosDias(inc.creadaDiasAtras ?? 1)}T09:00:00`);
+      if (inc.estatus === "Aprobada" || inc.estatus === "Rechazada") {
+        this._audit(inc, inc.estatus, inc.decisionNota || "", `${fechaMenosDias(inc.decisionDiasAtras ?? 0)}T12:00:00`);
+      }
+    });
+  },
+  _audit(inc, accion, nota, ts) {
+    const prev = inc.auditoria[inc.auditoria.length - 1];
+    const prevHash = prev ? prev.hash : "0".repeat(8);
+    ts = ts || new Date().toISOString();
+    const hash = hashStr(prevHash + inc.id + accion + (nota || "") + ts);
+    inc.auditoria.push({ accion, nota: nota || "", ts, prevHash, hash });
+  },
+  verificar(inc) {
+    let prevHash = "0".repeat(8);
+    for (const a of inc.auditoria) {
+      if (a.prevHash !== prevHash || a.hash !== hashStr(prevHash + inc.id + a.accion + a.nota + a.ts)) return false;
+      prevHash = a.hash;
+    }
+    return true;
+  },
+};
+
+const fechaMenosDias = n => { const d = new Date(); d.setDate(d.getDate() - n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const diasEntre = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000) + 1;
+const periodoTxt = i => i.inicio === i.fin ? fechaLarga(i.inicio) : `${fechaLarga(i.inicio)} – ${fechaLarga(i.fin)}`;
+const tipoCls = t => ({ "Falta": "falta", "Retardo": "retardo", "Permiso con goce": "permiso", "Permiso sin goce": "permiso", "Incapacidad": "incap", "Vacaciones": "vacc" })[t] || "permiso";
+function estatusBadge(e) {
+  const m = { "Pendiente": "off", "Aprobada": "ok", "Rechazada": "alert" };
+  return `<span class="badge badge--${m[e] || "off"}">${e}</span>`;
+}
+
+/* Incidencia aprobada que cubre hoy (para la tabla de asistencia) */
+function incidenciaHoy(colaboradorId) {
+  const h = hoyISO();
+  return DATA.incidencias(state.empresa.id).find(i => i.colaboradorId === colaboradorId && i.estatus === "Aprobada" && i.inicio <= h && i.fin >= h);
+}
+
+const ICON_CHECK = `<path d="M20 6 9 17l-5-5"/>`;
+const ICON_X = `<path d="M18 6 6 18M6 6l12 12"/>`;
+
+function renderIncidencias() {
+  const emp = state.empresa;
+  const all = DATA.incidencias(emp.id);
+  const n = e => all.filter(i => i.estatus === e).length;
+  const stats = [
+    { v: n("Pendiente"), label: "Pendientes", cls: "warn" },
+    { v: n("Aprobada"), label: "Aprobadas", cls: "good" },
+    { v: n("Rechazada"), label: "Rechazadas", cls: "bad" },
+    { v: all.length, label: "Total", cls: "muted" },
+  ];
+  const chips = ["Todas", "Pendiente", "Aprobada", "Rechazada"];
+  const chipLabel = { "Todas": "Todas", "Pendiente": "Pendientes", "Aprobada": "Aprobadas", "Rechazada": "Rechazadas" };
+
+  let list = state.incFiltro === "Todas" ? all : all.filter(i => i.estatus === state.incFiltro);
+  list = list.slice().sort((a, b) => (a.estatus === "Pendiente" ? 0 : 1) - (b.estatus === "Pendiente" ? 0 : 1) || (a.inicio < b.inicio ? 1 : -1));
+
+  const filas = list.length ? list.map(i => {
+    const c = colabById(i.colaboradorId);
+    const acc = i.estatus === "Pendiente"
+      ? `<button class="ic-act ic-act--ok" data-aprobar="${i.id}" title="Aprobar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${ICON_CHECK}</svg></button>
+         <button class="ic-act ic-act--no" data-detalle="${i.id}" title="Revisar / rechazar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${ICON_X}</svg></button>`
+      : `<button class="btn btn--ghost btn--sm" data-detalle="${i.id}">Ver</button>`;
+    return `<tr data-row="${i.id}">
+      <td>${personCell(c)}</td>
+      <td><span class="ic-tipo ic-tipo--${tipoCls(i.tipo)}">${i.tipo}</span></td>
+      <td>${periodoTxt(i)}</td>
+      <td>${diasEntre(i.inicio, i.fin)} día(s)</td>
+      <td>${estatusBadge(i.estatus)}</td>
+      <td class="ic-actions">${acc}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:34px">Sin incidencias en este filtro.</td></tr>`;
+
+  $("#view-incidencias").innerHTML = `
+    <div class="page-head head-row">
+      <div><h1>Incidencias</h1><p>Faltas, permisos e incapacidades con flujo de aprobación de ${emp.nombre}.</p></div>
+      <button class="btn btn--primary btn--sm" id="btnNuevaInc"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Nueva incidencia</button>
+    </div>
+    <div class="stat-row">${stats.map(s => `<div class="stat"><div class="stat__v stat__v--${s.cls}">${s.v}</div><div class="stat__l">${s.label}</div></div>`).join("")}</div>
+    <div class="toolbar">
+      <div class="chip-filter" id="incFilter">${chips.map(c => `<button class="chip ${state.incFiltro === c ? "is-active" : ""}" data-f="${c}">${chipLabel[c]}</button>`).join("")}</div>
+    </div>
+    <div class="card"><div class="table-wrap"><table>
+      <thead><tr><th>Colaborador</th><th>Tipo</th><th>Periodo</th><th>Días</th><th>Estatus</th><th></th></tr></thead>
+      <tbody>${filas}</tbody></table></div></div>`;
+
+  $("#btnNuevaInc").addEventListener("click", openIncidenciaForm);
+  $$("#incFilter .chip").forEach(ch => ch.addEventListener("click", () => { state.incFiltro = ch.dataset.f; renderIncidencias(); }));
+  $$("#view-incidencias [data-aprobar]").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); aprobarIncidencia(b.dataset.aprobar); }));
+  $$("#view-incidencias [data-detalle]").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); openIncidenciaDetalle(b.dataset.detalle); }));
+  $$("#view-incidencias tbody tr[data-row]").forEach(tr => tr.addEventListener("click", () => openIncidenciaDetalle(tr.dataset.row)));
+}
+
+/* Detalle + aprobación */
+function openIncidenciaDetalle(id) {
+  const inc = DEMO_INCIDENCIAS.find(x => x.id === id); if (!inc) return;
+  const c = colabById(inc.colaboradorId);
+  $$(".modal-overlay").forEach(o => o.remove());
+  const integra = INCID.verificar(inc);
+  const trailCls = a => a.accion === "Aprobada" ? "money" : (a.accion === "Rechazada" ? "bad" : "alta");
+  const trail = inc.auditoria.map(a => `
+    <div class="tl-item tl-item--${trailCls(a)}">
+      <div class="tl-top"><span class="tl-tipo">${a.accion}</span><span class="tl-fecha">${fechaLarga(a.ts.slice(0, 10))} · ${horaTxt(a.ts)}</span></div>
+      ${a.nota ? `<div class="tl-detalle">${a.nota}</div>` : ""}
+      <div class="tl-detalle mono">#${a.hash}</div>
+    </div>`).join("");
+
+  const acciones = inc.estatus === "Pendiente"
+    ? `<div class="field" style="margin-top:6px"><label class="field__label">Nota de resolución (opcional)</label><textarea class="input" id="incNota" rows="2" placeholder="Comentario para el colaborador…"></textarea></div>
+       <div class="modal__foot" style="padding-left:0;padding-right:0;padding-bottom:0">
+         <button class="btn btn--danger" id="incRechazar">Rechazar</button>
+         <button class="btn btn--primary" id="incAprobar">Aprobar</button>
+       </div>`
+    : "";
+
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  ov.innerHTML = `
+    <div class="modal modal--sm" role="dialog" aria-modal="true" style="text-align:left">
+      <div class="modal__head"><h3>Detalle de incidencia</h3>
+        <button class="icon-btn" id="incClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_X}</svg></button>
+      </div>
+      <div class="modal__body">
+        <div class="cell-person" style="margin-bottom:14px">
+          <div class="avatar">${avatarInner(c)}</div>
+          <div><div class="cell-person__name">${c ? c.nombre : inc.colaboradorId}</div><div class="cell-person__sub">${c ? c.puesto : ""}</div></div>
+        </div>
+        <div class="inc-meta">
+          <div><span class="inc-meta__k">Tipo</span><span class="ic-tipo ic-tipo--${tipoCls(inc.tipo)}">${inc.tipo}</span></div>
+          <div><span class="inc-meta__k">Estatus</span>${estatusBadge(inc.estatus)}</div>
+          <div><span class="inc-meta__k">Periodo</span><span>${periodoTxt(inc)}</span></div>
+          <div><span class="inc-meta__k">Días</span><span>${diasEntre(inc.inicio, inc.fin)}</span></div>
+        </div>
+        ${inc.motivo ? `<p class="inc-motivo">${inc.motivo}</p>` : ""}
+        <div class="sheet__section-title">Rastro de auditoría ${integra ? '<span class="audit-ok">✓ íntegro</span>' : '<span class="audit-bad">✗ alterado</span>'}</div>
+        <div class="timeline">${trail}</div>
+        ${acciones}
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#incClose", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  if (inc.estatus === "Pendiente") {
+    $("#incAprobar", ov).addEventListener("click", () => aprobarIncidencia(id, $("#incNota", ov).value.trim()));
+    $("#incRechazar", ov).addEventListener("click", () => rechazarIncidencia(id, $("#incNota", ov).value.trim()));
+  }
+}
+
+function aprobarIncidencia(id, nota) {
+  const inc = DEMO_INCIDENCIAS.find(x => x.id === id);
+  if (!inc || inc.estatus !== "Pendiente") return;
+  inc.estatus = "Aprobada";
+  INCID._audit(inc, "Aprobada", nota || "");
+  // TODO firebase: updateDoc estatus + addDoc en auditoria (append-only)
+  $$(".modal-overlay").forEach(o => o.remove());
+  renderIncidencias();
+  toast(`Incidencia de ${(colabById(inc.colaboradorId) || {}).nombre?.split(" ")[0] || ""} aprobada.`);
+}
+
+function rechazarIncidencia(id, nota) {
+  const inc = DEMO_INCIDENCIAS.find(x => x.id === id);
+  if (!inc || inc.estatus !== "Pendiente") return;
+  inc.estatus = "Rechazada";
+  INCID._audit(inc, "Rechazada", nota || "Sin motivo especificado");
+  // TODO firebase: updateDoc estatus + addDoc en auditoria (append-only)
+  $$(".modal-overlay").forEach(o => o.remove());
+  renderIncidencias();
+  toast("Incidencia rechazada.");
+}
+
+/* Alta de incidencia */
+function openIncidenciaForm() {
+  $$(".modal-overlay").forEach(o => o.remove());
+  const cols = DATA.colaboradores(state.empresa.id);
+  const colOpts = cols.length ? cols.map(c => ({ v: c.id, label: c.nombre })) : [{ v: "", label: "Sin colaboradores" }];
+  const tipoOpts = DEMO_TIPOS_INCIDENCIA.map(t => ({ v: t, label: t }));
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  ov.innerHTML = `
+    <div class="modal modal--sm" role="dialog" aria-modal="true" style="text-align:left">
+      <div class="modal__head"><h3>Nueva incidencia</h3>
+        <button class="icon-btn" id="niClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_X}</svg></button>
+      </div>
+      <div class="modal__body">
+        <div class="field"><label class="field__label">Colaborador *</label>${selectHTML("niColab", colOpts[0].v, colOpts)}</div>
+        <div class="field" style="margin-top:12px"><label class="field__label">Tipo *</label>${selectHTML("niTipo", tipoOpts[0].v, tipoOpts)}</div>
+        <div class="form-grid" style="margin-top:12px">
+          <div class="field"><label class="field__label">Inicio *</label>${datepickHTML("niInicio", hoyISO())}</div>
+          <div class="field"><label class="field__label">Fin *</label>${datepickHTML("niFin", hoyISO())}</div>
+        </div>
+        <div class="field" style="margin-top:12px"><label class="field__label">Motivo</label><textarea class="input" id="ni-motivo" rows="2" placeholder="Describe brevemente…"></textarea></div>
+        <p class="form-error" id="niError"></p>
+      </div>
+      <div class="modal__foot"><button class="btn btn--ghost" id="niCancel">Cancelar</button><button class="btn btn--primary" id="niSave">Registrar</button></div>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add("is-on"));
+  bindSelect(ov); bindDatepick(ov);
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#niClose", ov).addEventListener("click", close);
+  $("#niCancel", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  $("#niSave", ov).addEventListener("click", () => {
+    const colId = $(".select[data-name='niColab']", ov).dataset.value;
+    const tipo = $(".select[data-name='niTipo']", ov).dataset.value;
+    const inicio = $(".datepick[data-name='niInicio']", ov).dataset.value;
+    const fin = $(".datepick[data-name='niFin']", ov).dataset.value;
+    const err = $("#niError", ov);
+    if (!colId) { err.textContent = "Selecciona un colaborador."; return; }
+    if (!inicio || !fin) { err.textContent = "Indica el periodo."; return; }
+    if (fin < inicio) { err.textContent = "La fecha fin no puede ser antes del inicio."; return; }
+    const inc = { id: "inc" + Date.now(), empresaId: state.empresa.id, colaboradorId: colId, tipo, inicio, fin, motivo: $("#ni-motivo", ov).value.trim(), estatus: "Pendiente", auditoria: [] };
+    INCID._audit(inc, "Creada", inc.motivo);
+    DEMO_INCIDENCIAS.push(inc);
+    // TODO firebase: addDoc(collection(db,`empresas/${state.empresa.id}/incidencias`), inc)
+    state.incFiltro = "Pendiente";
+    close();
+    renderIncidencias();
+    toast("Incidencia registrada (pendiente de aprobación).");
+  });
+}
+
 /* ---------- Placeholders de módulos ---------- */
 const MODS = {
-  incidencias: ["Incidencias", "Faltas, retardos, permisos e incapacidades con flujo de aprobación sobre el ledger inmutable.", `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/>`],
   vacaciones:  ["Vacaciones", "Saldos conforme a la LFT, solicitudes y aprobaciones con trazabilidad.", `<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>`],
   nom035:      ["NOM-035", "Cuestionarios oficiales, aplicación, resultados y evidencia descargable. Tu diferenciador de cumplimiento — el know-how ya está en tus consultoras.", `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>`],
   config:      ["Configuración", "Empresas, roles, usuarios y conexión con Firebase.", `<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>`],
@@ -970,6 +1212,7 @@ function go(view) {
   if (view === "colaboradores") renderColab();
   if (view === "organigrama") renderOrganigrama();
   if (view === "asistencia") renderAsistencia();
+  if (view === "incidencias") renderIncidencias();
   if (MODS[view]) renderPlaceholder(view);
   $("#sidebar").classList.remove("is-open");
   $("#scrim").classList.remove("is-on");
@@ -1009,6 +1252,7 @@ function bootApp() {
   $("#login").style.display = "none";
   $("#app").classList.add("is-on");
   LEDGER.init();
+  INCID.init();
   renderEmpresaMenu();
   go("dashboard");
 }

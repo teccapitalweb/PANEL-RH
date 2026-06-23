@@ -136,3 +136,28 @@ const DEMO_ASISTENCIA_SEED = [
   { empresaId: "fisioteck",   colaboradorId: "c009", tipo: "entrada", hora: "08:00" },
   { empresaId: "fisioteck",   colaboradorId: "c009", tipo: "salida",  hora: "16:00" },
 ];
+
+/* =====================================================================
+   FASE 2 · Parte 2 — Incidencias (con flujo de aprobación)
+   ===================================================================== */
+
+/* Fechas relativas a hoy para que la demo siempre esté vigente */
+const _hoyBase = new Date();
+const _fd = n => { const d = new Date(_hoyBase); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+
+/* Semilla de incidencias. app.js arma la auditoría (cadena de hashes) al arrancar.
+   creadaDiasAtras / decisionDiasAtras: hace cuántos días ocurrió cada acción. */
+const DEMO_INCIDENCIAS = [
+  // TEC CAPITAL
+  { id: "inc1", empresaId: "tec-capital", colaboradorId: "c005", tipo: "Vacaciones",        inicio: _fd(-1), fin: _fd(3),   motivo: "Vacaciones anuales (12 días LFT).", estatus: "Aprobada",  creadaDiasAtras: 6, decisionDiasAtras: 5, decisionNota: "Autorizado por dirección." },
+  { id: "inc2", empresaId: "tec-capital", colaboradorId: "c003", tipo: "Retardo",           inicio: _fd(0),  fin: _fd(0),   motivo: "Retardo por tráfico en la entrada.", estatus: "Pendiente", creadaDiasAtras: 0 },
+  { id: "inc3", empresaId: "tec-capital", colaboradorId: "c002", tipo: "Permiso con goce",  inicio: _fd(2),  fin: _fd(2),   motivo: "Trámite personal (medio día).", estatus: "Pendiente", creadaDiasAtras: 1 },
+  { id: "inc4", empresaId: "tec-capital", colaboradorId: "c004", tipo: "Permiso sin goce",  inicio: _fd(-10), fin: _fd(-10), motivo: "Asunto familiar.", estatus: "Aprobada",  creadaDiasAtras: 12, decisionDiasAtras: 11, decisionNota: "OK." },
+  { id: "inc5", empresaId: "tec-capital", colaboradorId: "c006", tipo: "Falta",             inicio: _fd(-3), fin: _fd(-3),  motivo: "No se presentó ni avisó.", estatus: "Rechazada", creadaDiasAtras: 3, decisionDiasAtras: 2, decisionNota: "Falta injustificada, sin documento." },
+  // DERMALYSSE
+  { id: "inc6", empresaId: "dermalysse", colaboradorId: "c008", tipo: "Incapacidad",        inicio: _fd(-1), fin: _fd(2),   motivo: "Incapacidad IMSS (cuadro gripal).", estatus: "Aprobada", creadaDiasAtras: 2, decisionDiasAtras: 1, decisionNota: "Folio IMSS recibido." },
+  { id: "inc7", empresaId: "dermalysse", colaboradorId: "c007", tipo: "Permiso con goce",   inicio: _fd(5),  fin: _fd(5),   motivo: "Capacitación externa.", estatus: "Pendiente", creadaDiasAtras: 0 },
+  // FISIOTECK
+  { id: "inc8", empresaId: "fisioteck",  colaboradorId: "c010", tipo: "Incapacidad",        inicio: _fd(-2), fin: _fd(1),   motivo: "Incapacidad IMSS.", estatus: "Aprobada", creadaDiasAtras: 3, decisionDiasAtras: 2, decisionNota: "Documento validado." },
+  { id: "inc9", empresaId: "fisioteck",  colaboradorId: "c009", tipo: "Vacaciones",         inicio: _fd(7),  fin: _fd(11),  motivo: "Vacaciones programadas.", estatus: "Pendiente", creadaDiasAtras: 1 },
+];
