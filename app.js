@@ -51,7 +51,7 @@ const DATA = {
 };
 
 /* ---------- Estado ---------- */
-const state = { empresa: DATA.empresas()[0], filtro: "Todos", busqueda: "", incFiltro: "Todas" };
+const state = { empresa: DATA.empresas()[0], filtro: "Todos", busqueda: "", incFiltro: "Todas", calY: new Date().getFullYear(), calM: new Date().getMonth(), calFiltro: "Todas" };
 
 /* ---------- Helpers ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -1449,6 +1449,118 @@ function openVacacionForm() {
   });
 }
 
+/* =====================================================================
+   FASE 2 · Parte 4 — Calendario de ausencias del equipo
+   ===================================================================== */
+
+/* Junta vacaciones + incidencias (no rechazadas) en una lista normalizada */
+function ausenciasEmpresa() {
+  const emp = state.empresa.id;
+  const vac = DATA.vacaciones(emp).filter(v => v.estatus !== "Rechazada")
+    .map(v => ({ id: v.id, colaboradorId: v.colaboradorId, tipo: "Vacaciones", inicio: v.inicio, fin: v.fin, estatus: v.estatus, origen: "vacacion" }));
+  const inc = DATA.incidencias(emp).filter(i => i.estatus !== "Rechazada")
+    .map(i => ({ id: i.id, colaboradorId: i.colaboradorId, tipo: i.tipo, inicio: i.inicio, fin: i.fin, estatus: i.estatus, origen: "incidencia" }));
+  let all = [...vac, ...inc];
+  if (state.calFiltro === "vacacion") all = all.filter(a => a.origen === "vacacion");
+  if (state.calFiltro === "incidencia") all = all.filter(a => a.origen === "incidencia");
+  return all;
+}
+
+const DOW_CAL = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const CAL_LEYENDA = [
+  { cls: "vacc", label: "Vacaciones" },
+  { cls: "incap", label: "Incapacidad" },
+  { cls: "permiso", label: "Permiso" },
+  { cls: "falta", label: "Falta" },
+  { cls: "retardo", label: "Retardo" },
+];
+
+function renderCalendario() {
+  const vy = state.calY, vm = state.calM;
+  const aus = ausenciasEmpresa();
+  const hoy = hoyISO();
+  const startDow = (new Date(vy, vm, 1).getDay() + 6) % 7;
+  const dim = new Date(vy, vm + 1, 0).getDate();
+
+  let cells = "";
+  for (let i = 0; i < startDow; i++) cells += `<div class="cal-cell cal-cell--empty"></div>`;
+  for (let d = 1; d <= dim; d++) {
+    const iso = `${vy}-${String(vm + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const dow = (new Date(vy, vm, d).getDay() + 6) % 7;
+    const finde = dow >= 5;
+    const delDia = aus.filter(a => a.inicio <= iso && a.fin >= iso);
+    const vis = delDia.slice(0, 3);
+    const extra = delDia.length - vis.length;
+    const chips = vis.map(a => {
+      const c = colabById(a.colaboradorId);
+      const nom = c ? c.nombre : a.colaboradorId;
+      return `<span class="cal-chip cal-chip--${tipoCls(a.tipo)} ${a.estatus === "Pendiente" ? "is-pend" : ""}" title="${nom} · ${a.tipo}${a.estatus === "Pendiente" ? " (pendiente)" : ""}">${initials(nom)}</span>`;
+    }).join("");
+    cells += `<div class="cal-cell ${iso === hoy ? "is-today" : ""} ${finde ? "is-weekend" : ""} ${delDia.length ? "has-items" : ""}" data-day="${iso}">
+      <div class="cal-cell__num">${d}</div>
+      <div class="cal-cell__items">${chips}${extra > 0 ? `<span class="cal-more">+${extra}</span>` : ""}</div>
+    </div>`;
+  }
+
+  const fchips = [["Todas", "Todas"], ["vacacion", "Vacaciones"], ["incidencia", "Incidencias"]];
+  $("#view-calendario").innerHTML = `
+    <div class="page-head"><h1>Calendario de ausencias</h1><p>Vacaciones, permisos e incapacidades del equipo de ${state.empresa.nombre}.</p></div>
+    <div class="cal-head">
+      <div class="cal-nav">
+        <button class="dp-arrow" id="calPrev" title="Mes anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+        <span class="cal-title">${MESES_LARGO[vm]} ${vy}</span>
+        <button class="dp-arrow" id="calNext" title="Mes siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+        <button class="btn btn--ghost btn--sm" id="calHoy">Hoy</button>
+      </div>
+      <div class="chip-filter">${fchips.map(([f, l]) => `<button class="chip ${state.calFiltro === f ? "is-active" : ""}" data-calf="${f}">${l}</button>`).join("")}</div>
+    </div>
+    <div class="cal-legend">${CAL_LEYENDA.map(l => `<span class="cal-leg"><span class="cal-leg__dot cal-chip--${l.cls}"></span>${l.label}</span>`).join("")}<span class="cal-leg"><span class="cal-leg__dot is-pend"></span>Pendiente</span></div>
+    <div class="card cal-card">
+      <div class="cal-dows">${DOW_CAL.map(d => `<span>${d}</span>`).join("")}</div>
+      <div class="cal-grid">${cells}</div>
+    </div>`;
+
+  $("#calPrev").addEventListener("click", () => { state.calM--; if (state.calM < 0) { state.calM = 11; state.calY--; } renderCalendario(); });
+  $("#calNext").addEventListener("click", () => { state.calM++; if (state.calM > 11) { state.calM = 0; state.calY++; } renderCalendario(); });
+  $("#calHoy").addEventListener("click", () => { state.calY = new Date().getFullYear(); state.calM = new Date().getMonth(); renderCalendario(); });
+  $$("#view-calendario [data-calf]").forEach(ch => ch.addEventListener("click", () => { state.calFiltro = ch.dataset.calf; renderCalendario(); }));
+  $$("#view-calendario .cal-cell.has-items[data-day]").forEach(cell => cell.addEventListener("click", () => openDiaDetalle(cell.dataset.day)));
+}
+
+function openDiaDetalle(iso) {
+  const aus = ausenciasEmpresa().filter(a => a.inicio <= iso && a.fin >= iso);
+  $$(".modal-overlay").forEach(o => o.remove());
+  const filas = aus.length ? aus.map(a => {
+    const c = colabById(a.colaboradorId);
+    return `<button class="dia-row" data-aus="${a.origen}:${a.id}">
+      <div class="avatar avatar--sm">${avatarInner(c)}</div>
+      <div class="dia-row__meta"><div class="dia-row__name">${c ? c.nombre : a.colaboradorId}</div>
+        <div class="dia-row__sub"><span class="ic-tipo ic-tipo--${tipoCls(a.tipo)}">${a.tipo}</span> · ${periodoTxt(a)}</div></div>
+      ${estatusBadge(a.estatus)}
+    </button>`;
+  }).join("") : `<p class="muted-empty">Sin ausencias este día.</p>`;
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  ov.innerHTML = `
+    <div class="modal modal--sm" role="dialog" aria-modal="true" style="text-align:left">
+      <div class="modal__head"><h3>${fechaLarga(iso)}</h3>
+        <button class="icon-btn" id="diaClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON_X}</svg></button>
+      </div>
+      <div class="modal__body"><div class="dia-list">${filas}</div></div>
+    </div>`;
+  document.body.appendChild(ov);
+  requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#diaClose", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  $$(".dia-row", ov).forEach(r => r.addEventListener("click", () => {
+    const sep = r.dataset.aus.indexOf(":");
+    const origen = r.dataset.aus.slice(0, sep), rid = r.dataset.aus.slice(sep + 1);
+    close();
+    setTimeout(() => { origen === "vacacion" ? openVacacionDetalle(rid) : openIncidenciaDetalle(rid); }, 180);
+  }));
+}
+
 /* ---------- Placeholders de módulos ---------- */
 const MODS = {
   nom035:      ["NOM-035", "Cuestionarios oficiales, aplicación, resultados y evidencia descargable. Tu diferenciador de cumplimiento — el know-how ya está en tus consultoras.", `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>`],
@@ -1476,6 +1588,7 @@ function go(view) {
   if (view === "asistencia") renderAsistencia();
   if (view === "incidencias") renderIncidencias();
   if (view === "vacaciones") renderVacaciones();
+  if (view === "calendario") renderCalendario();
   if (MODS[view]) renderPlaceholder(view);
   $("#sidebar").classList.remove("is-open");
   $("#scrim").classList.remove("is-on");

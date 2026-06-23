@@ -660,3 +660,52 @@ textarea.input { height: auto; min-height: 58px; padding: 10px 14px; line-height
 .vac-disp { font-weight: 600; }
 .vac-hint { font-size: .8rem; color: var(--muted); margin-top: 10px; min-height: 18px; }
 .vac-hint--bad { color: var(--bad); font-weight: 600; }
+
+/* =====================================================================
+   FASE 2 · Parte 4 — Calendario de ausencias
+   ===================================================================== */
+.cal-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.cal-nav { display: flex; align-items: center; gap: 8px; }
+.cal-title { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; min-width: 158px; text-align: center; text-transform: capitalize; }
+
+.cal-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 14px; }
+.cal-leg { display: inline-flex; align-items: center; gap: 7px; font-size: .76rem; color: var(--muted); }
+.cal-leg__dot { width: 12px; height: 12px; border-radius: 4px; }
+.cal-leg__dot.is-pend { border: 1px dashed var(--muted); opacity: .7; }
+
+.cal-card { padding: 16px; }
+.cal-dows { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 6px; }
+.cal-dows span { text-align: center; font-size: .72rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-cell { min-height: 92px; border: 1px solid var(--border-2); border-radius: var(--r-sm); padding: 6px; background: var(--surface); display: flex; flex-direction: column; gap: 4px; }
+.cal-cell--empty { border: none; background: transparent; min-height: 0; }
+.cal-cell.is-weekend { background: var(--surface-2); }
+.cal-cell.is-today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.cal-cell.has-items { cursor: pointer; transition: border-color .14s, transform .14s; }
+.cal-cell.has-items:hover { border-color: var(--accent); transform: translateY(-1px); }
+.cal-cell__num { font-size: .78rem; font-weight: 600; color: var(--muted); }
+.cal-cell.is-today .cal-cell__num { color: var(--accent); }
+.cal-cell__items { display: flex; flex-wrap: wrap; gap: 3px; align-content: flex-start; }
+.cal-more { font-size: .66rem; font-weight: 600; color: var(--muted); align-self: center; }
+
+.cal-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 20px; padding: 0 5px; border-radius: 6px; font-size: .65rem; font-weight: 700; line-height: 1; }
+.cal-chip--vacc    { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
+.cal-chip--incap   { background: color-mix(in srgb, #0ea5e9 20%, transparent); color: #0284c7; }
+.cal-chip--permiso { background: var(--accent-soft); color: var(--accent); }
+.cal-chip--falta   { background: color-mix(in srgb, var(--bad) 16%, transparent); color: var(--bad); }
+.cal-chip--retardo { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.cal-chip.is-pend  { opacity: .6; border: 1px dashed currentColor; }
+
+/* Detalle de día */
+.dia-list { display: flex; flex-direction: column; gap: 8px; }
+.dia-row { display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 11px; background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--r-md); cursor: pointer; text-align: left; transition: border-color .14s; }
+.dia-row:hover { border-color: var(--accent); }
+.dia-row__meta { flex: 1; min-width: 0; }
+.dia-row__name { font-weight: 600; font-size: .86rem; }
+.dia-row__sub { font-size: .74rem; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+
+/* Calendario compacto en móvil: chips → puntos */
+@media (max-width: 700px) {
+  .cal-cell { min-height: 62px; }
+  .cal-chip { min-width: 9px; width: 9px; height: 9px; padding: 0; border-radius: 50%; font-size: 0; overflow: hidden; }
+}

@@ -58,17 +58,25 @@ empresas/{empresaId}/eventos/{eventoId}   ← ledger inmutable (auditoría)
   - **Solicitud y aprobación** (Pendiente → Aprobada / Rechazada) con el mismo rastro de auditoría inmutable y aviso de saldo disponible.
   - **Resumen del equipo** (días por ley / tomados / disponibles / pendientes) y barra de avance por persona.
   - **Enlace con Asistencia**: una vacación aprobada que cubra el día aparece en la tabla de asistencia y descuenta del saldo.
+- **Fase 2 · Parte 4 — Calendario de ausencias:**
+  - **Vista de mes** que agrega vacaciones, permisos e incapacidades de todo el equipo, día por día.
+  - Chips por colaborador con **color según el tipo** (vacaciones, incapacidad, permiso, falta, retardo) y las **pendientes** marcadas aparte.
+  - **Navegación de mes** (anterior/siguiente/hoy), filtro por origen y leyenda.
+  - **Clic en un día** → lista las ausencias de esa fecha; clic en una ausencia abre su detalle con el rastro de auditoría.
 - Dashboard con KPIs por empresa.
 - Navegación del módulo restante (NOM-035) como placeholder.
-- Responsive hasta 375px (sidebar en drawer).
+- Responsive hasta 375px (sidebar en drawer; el calendario colapsa los chips a puntos).
+
+## Fase 2 — COMPLETA ✓
+Asistencia (checador + ledger + turnos) · Incidencias (aprobación + auditoría) · Vacaciones (saldos LFT) · Calendario de ausencias. Todo multi-tenant y sobre el principio de bitácora inmutable.
 
 ## Lo que NO se tocó / sigue
-- **Fase 2 pendiente**: Calendario de ausencias del equipo (vista de mes que agrega asistencia, incidencias y vacaciones).
-- Nómina (marcada "Pronto") — fase final, vía PAC con el `TimbradoProvider`.
-- Módulo en placeholder (NOM-035): pendiente de construir sobre este shell.
-- Auth/datos reales: hoy en modo demo. Foto y documentos en memoria; QR representativo; geo simulada; ledger, incidencias y vacaciones en memoria. En producción → Firebase (Storage, Geolocation + haversine, colecciones append-only). Todo marcado con TODO.
+- **Fase 3 — Cumplimiento**: NOM-035 (cuestionarios, resultados, evidencia) y alertas de vencimientos. Tu diferenciador.
+- **Fase 4 — Portal del colaborador** y **Fase 5 — Nómina** (vía PAC con el `TimbradoProvider`, al final).
+- Auth/datos reales: hoy en modo demo. Foto/documentos en memoria; QR representativo; geo simulada; ledger, incidencias y vacaciones en memoria. En producción → Firebase (Storage, Geolocation + haversine, colecciones append-only). Todo marcado con TODO.
 
-Orden sugerido: **Calendario de ausencias → NOM-035 → (al final) Nómina**.
+Orden sugerido: **NOM-035 → Portal del colaborador → (al final) Nómina**.
+
 
 
 
