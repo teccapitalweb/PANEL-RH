@@ -19,6 +19,10 @@ const firebaseConfig = {
    Si luego sirves a varias, usa un ID distinto por cliente. */
 const EMPRESA_ID = "default";
 
+/* (Opcional) Endpoint de IA para el resumen ejecutivo. Déjalo vacío para usar
+   el generador por reglas (sin costo, sin backend). Ver IA-ENDPOINT.md. */
+const AI_ENDPOINT = "";
+
 (function () {
   var on = false, db = null, auth = null;
   var real = firebaseConfig.apiKey && firebaseConfig.apiKey !== "TODO";
@@ -31,6 +35,6 @@ const EMPRESA_ID = "default";
     } catch (e) { console.warn("Firebase no inició; modo demo:", e && e.message); }
   }
   if (typeof window !== "undefined") {
-    window.db = db; window.auth = auth; window.FIREBASE_ON = on; window.EMPRESA_ID = EMPRESA_ID;
+    window.db = db; window.auth = auth; window.FIREBASE_ON = on; window.EMPRESA_ID = EMPRESA_ID; window.AI_ENDPOINT = AI_ENDPOINT;
   }
 })();

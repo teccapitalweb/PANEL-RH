@@ -31,13 +31,16 @@
       if (on()) return cfgDoc().get().then(function (s) { return s.exists ? s.data() : null; });
       var c = lsGet("examenrh_config", null), p = lsGet("examenrh_puestos", null);
       if (!c && !p) return Promise.resolve(null);
-      return Promise.resolve({ mensajeFinTitulo: c && c.mensajeFinTitulo, mensajeFinCuerpo: c && c.mensajeFinCuerpo, puestos: Array.isArray(p) ? p : null });
+      var out = c ? Object.assign({}, c) : {};
+      if (Array.isArray(p)) out.puestos = p;
+      return Promise.resolve(out);
     },
 
     guardarConfig: function (cfg) {
       if (on()) return cfgDoc().set(cfg, { merge: true });
-      lsSet("examenrh_config", { mensajeFinTitulo: cfg.mensajeFinTitulo, mensajeFinCuerpo: cfg.mensajeFinCuerpo });
-      if (Array.isArray(cfg.puestos)) lsSet("examenrh_puestos", cfg.puestos);
+      var copy = Object.assign({}, cfg), puestos = copy.puestos; delete copy.puestos;
+      lsSet("examenrh_config", copy);
+      if (Array.isArray(puestos)) lsSet("examenrh_puestos", puestos);
       return Promise.resolve();
     },
 

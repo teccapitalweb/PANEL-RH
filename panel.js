@@ -167,6 +167,170 @@ function pintarFilas() {
 }
 
 /* ---------- Detalle ---------- */
+const GUIA_DIM = {
+  honestidad: { pregunta: "Cuéntame de una vez que viste a un compañero hacer algo incorrecto en el trabajo. ¿Qué hiciste?" },
+  juicio: { pregunta: "Descríbeme una decisión difícil que tomaste sin poder consultar a nadie. ¿Cómo la resolviste?" },
+  servicio: { pregunta: "Háblame de un cliente molesto que hayas atendido. ¿Qué hiciste para resolverlo?" },
+  estres: { pregunta: "Cuéntame de un día de mucha carga o presión. ¿Cómo lo manejaste?" },
+  social: { pregunta: "Dame un ejemplo de un conflicto con un compañero y cómo lo resolviste." },
+  personalidad: { pregunta: "¿Qué tipo de situaciones te sacan de balance en el trabajo y cómo las manejas?" },
+  intelecto: { pregunta: "Si te doy un problema sin solución obvia, ¿cómo lo abordarías paso a paso?" },
+  psicosocial: { pregunta: "¿Cómo describes el equilibrio entre tu vida personal y el trabajo?" },
+  logistica: { pregunta: "¿Qué tan flexible es tu disponibilidad de horarios y traslados?" },
+  atencion: { pregunta: "Cuéntame de un error por un detalle pequeño que se te haya pasado. ¿Qué cambiaste después?" },
+  perfil: { pregunta: "¿Por qué te interesa este puesto y qué esperas de él?" },
+};
+const PREG_PUESTO = {
+  "Atención a cliente": "Un cliente exige algo que va contra la política. ¿Cómo lo manejas sin perderlo?",
+  "Cajero(a)": "Si tu caja no cuadra al cierre del turno, ¿qué pasos sigues?",
+  "Ventas": "¿Cómo conviertes a un cliente que dice 'solo estoy viendo'?",
+  "Almacén": "¿Cómo te aseguras de que el inventario físico coincida con el sistema?",
+  "Administrativo": "Si tu jefe y otra área te piden algo urgente al mismo tiempo, ¿cómo priorizas?",
+  "Cocina / Producción": "¿Cómo mantienes higiene y velocidad cuando hay mucha demanda?",
+};
+
+function generarResumen(a) {
+  const r = a.resultado, g = r.global, nombre = a.datos.nombre, puesto = a.datos.puesto;
+  const dims = Object.keys(DIMENSIONES).filter(d => d !== "puesto" && r.porDim[d]).map(d => ({ d, pct: r.porDim[d].pct }));
+  const desc = dims.slice().sort((x, y) => y.pct - x.pct);
+  const fuertes = desc.filter(x => x.pct >= 0.75).slice(0, 2);
+  const debiles = desc.filter(x => x.pct < 0.45).sort((x, y) => x.pct - y.pct);
+  const nom = d => (DIMENSIONES[d] || d).toLowerCase();
+
+  const S = [];
+  S.push(`${nombre} obtuvo un puntaje global de ${pct100(g)}/100 (${nivelDimObj(g).label}) para el puesto de ${puesto}.`);
+  if (r.puesto) S.push(`Su ajuste específico al puesto es de ${pct100(r.puesto.pct)}% (${r.puesto.nivel}).`);
+  if (fuertes.length) S.push(`Destaca en ${fuertes.map(f => nom(f.d)).join(" y ")}.`);
+  if (debiles.length) S.push(`Principales áreas de oportunidad: ${debiles.slice(0, 3).map(f => nom(f.d)).join(", ")}.`);
+  if (r.banderas && r.banderas.length) S.push(`Atención: señales bajas en ${r.banderas.map(d => nom(d)).join(" y ")}; conviene profundizar en la entrevista antes de decidir.`);
+  if (a.decision === "contratar") S.push("RH marcó este perfil como candidato a contratar.");
+  else if (a.decision === "descartar") S.push("RH marcó este perfil para descartar.");
+  else if (a.decision === "revision") S.push("RH dejó este perfil en revisión.");
+  else S.push("Se recomienda validar en entrevista las áreas señaladas antes de tomar una decisión.");
+
+  const preguntas = [], usados = {};
+  const add = q => { if (q && !usados[q]) { usados[q] = 1; preguntas.push(q); } };
+  (r.banderas || []).forEach(d => { if (GUIA_DIM[d]) add(GUIA_DIM[d].pregunta); });
+  debiles.forEach(f => { if (GUIA_DIM[f.d]) add(GUIA_DIM[f.d].pregunta); });
+  if (PREG_PUESTO[puesto]) add(PREG_PUESTO[puesto]);
+  add(GUIA_DIM.perfil.pregunta);
+  if (preguntas.length < 4) desc.slice().reverse().forEach(f => { if (preguntas.length < 4 && GUIA_DIM[f.d]) add(GUIA_DIM[f.d].pregunta); });
+
+  return { resumen: S.join(" "), preguntas: preguntas.slice(0, 6), fuente: "reglas" };
+}
+
+function pedirResumenIA(a) {
+  const r = a.resultado;
+  const payload = {
+    nombre: a.datos.nombre, puesto: a.datos.puesto,
+    global: pct100(r.global), nivel: nivelDimObj(r.global).label,
+    ajustePuesto: r.puesto ? pct100(r.puesto.pct) : null,
+    dimensiones: Object.keys(DIMENSIONES).filter(d => d !== "puesto" && r.porDim[d]).map(d => ({ nombre: DIMENSIONES[d], pct: pct100(r.porDim[d].pct), nivel: r.porDim[d].nivel })),
+    banderas: (r.banderas || []).map(d => DIMENSIONES[d]),
+    decision: a.decision ? DEC[a.decision].t : null,
+  };
+  return fetch(window.AI_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+    .then(res => { if (!res.ok) throw new Error("endpoint"); return res.json(); })
+    .then(d => ({ resumen: d.resumen || "", preguntas: Array.isArray(d.preguntas) ? d.preguntas : [], fuente: "ia" }));
+}
+
+function abrirResumenIA(a) {
+  const ov = document.createElement("div"); ov.className = "modal-overlay";
+  ov.innerHTML = `<div class="modal modal--resumen" role="dialog" aria-modal="true">
+    <div class="resumen-head"><h3>Resumen ejecutivo</h3><button class="icon-btn" id="rsClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <div class="resumen-body" id="rsBody"><div class="resumen-load">Generando…</div></div>
+    <div class="resumen-foot"><span class="resumen-src" id="rsSrc"></span><div class="resumen-actions"><button class="btn btn--sm btn--ghost" id="rsCopy">Copiar</button><button class="btn btn--sm btn--primary" id="rsOk">Cerrar</button></div></div>
+  </div>`;
+  document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#rsClose", ov).addEventListener("click", close);
+  $("#rsOk", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+
+  const pintar = (data) => {
+    const qs = data.preguntas.map(q => `<li>${q}</li>`).join("");
+    $("#rsBody", ov).innerHTML = `
+      <p class="resumen-text">${data.resumen}</p>
+      <div class="resumen-sub">Preguntas sugeridas para la entrevista</div>
+      <ol class="resumen-qs">${qs}</ol>`;
+    $("#rsSrc", ov).textContent = data.fuente === "ia" ? "Generado con IA" : "Generado a partir de los puntajes";
+    $("#rsCopy", ov).addEventListener("click", () => {
+      const txt = `${a.datos.nombre} — ${a.datos.puesto}\n\n${data.resumen}\n\nPreguntas de entrevista:\n${data.preguntas.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
+      const done = () => toast("Resumen copiado.");
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done).catch(done);
+      else { try { const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); done(); } catch (e) {} }
+    });
+  };
+  const fallback = () => pintar(generarResumen(a));
+  if (window.AI_ENDPOINT) pedirResumenIA(a).then(pintar).catch(fallback);
+  else fallback();
+}
+
+function exportarReportePDF(a) {
+  const g = a.resultado.global, gcls = clsDePct(g);
+  const dimOrden = Object.keys(DIMENSIONES).filter(d => a.resultado.porDim[d]);
+  const dimsHTML = dimOrden.map(d => {
+    const o = a.resultado.porDim[d]; const cls = clsDePct(o.pct);
+    return `<div class="pr-dim"><div class="pr-dim__top"><span>${DIMENSIONES[d]}</span><span class="pr-badge pr-badge--${cls}">${o.nivel} · ${pct100(o.pct)}%</span></div><div class="pr-bar"><div class="pr-bar__fill pr-bar__fill--${cls}" style="width:${pct100(o.pct)}%"></div></div></div>`;
+  }).join("");
+  const banderasHTML = a.resultado.banderas.length
+    ? a.resultado.banderas.map(d => `<span class="pr-flag">${DIMENSIONES[d]} baja</span>`).join("")
+    : `<span class="pr-okflag">Sin banderas críticas</span>`;
+  const ajuste = a.resultado.puesto
+    ? `<div class="pr-score__box"><div class="pr-score__lbl">Ajuste al puesto</div><div class="pr-score__val pr-${clsDePct(a.resultado.puesto.pct)}">${pct100(a.resultado.puesto.pct)}<span>%</span></div><div class="pr-score__nv">${a.resultado.puesto.nivel}</div></div>`
+    : "";
+  const dec = a.decision
+    ? `<span class="pr-dec pr-dec--${DEC[a.decision].cls}">${DEC[a.decision].t}</span>`
+    : `<span class="pr-dec pr-dec--none">Sin decisión registrada</span>`;
+  const at = a.atencion || {};
+  const resp = CONFIG.avisoResponsable || CONFIG.empresa;
+  const contacto = [a.datos.tel, a.datos.correo, a.datos.curp].filter(Boolean).join("&nbsp;&nbsp;·&nbsp;&nbsp;");
+  const consent = a.consentimiento && a.consentimiento.aceptado
+    ? `Aceptó el aviso de privacidad el ${fechaLarga((a.consentimiento.fecha || "").slice(0, 10))}`
+    : "No registrado";
+  const hoy = fechaLarga(new Date().toISOString());
+
+  const prev = document.getElementById("printRoot"); if (prev) prev.remove();
+  const root = document.createElement("div"); root.id = "printRoot";
+  root.innerHTML = `
+    <div class="pr-head">
+      <div><div class="pr-head__t">${resp}</div><div class="pr-head__sub">Reporte de evaluación de ingreso</div></div>
+      <div class="pr-head__date">Generado: ${hoy}</div>
+    </div>
+    <div class="pr-name">${a.datos.nombre}</div>
+    <div class="pr-role">${a.datos.puesto} · evaluado el ${fechaLarga(a.fecha)}</div>
+    ${contacto ? `<div class="pr-contact">${contacto}</div>` : ""}
+
+    <div class="pr-sec">Resultado</div>
+    <div class="pr-score">
+      <div class="pr-score__box"><div class="pr-score__lbl">Puntaje global</div><div class="pr-score__val pr-${gcls}">${pct100(g)}</div><div class="pr-score__nv">${nivelDimObj(g).label}</div></div>
+      ${ajuste}
+    </div>
+    <div class="pr-flags">${banderasHTML}</div>
+
+    <div class="pr-sec">Calificación por dimensión</div>
+    ${dimsHTML}
+    <div class="pr-rows">
+      <div class="pr-row"><span>Aciertos de intelecto</span><span>${a.resultado.aciertosIntelecto} de 3</span></div>
+      <div class="pr-row"><span>Reacción promedio</span><span>${at.avgMs || "—"} ms</span></div>
+    </div>
+
+    <div class="pr-sec">Decisión de Recursos Humanos</div>
+    <div class="pr-decline">${dec}</div>
+    ${a.notas ? `<div class="pr-notas"><b>Notas:</b> ${a.notas}</div>` : ""}
+
+    <div class="pr-sec">Privacidad</div>
+    <div class="pr-rows"><div class="pr-row"><span>Consentimiento (LFPDPPP)</span><span>${consent}</span></div></div>
+
+    <div class="pr-foot">Evalua RH · ${resp} · Documento confidencial para uso interno de Recursos Humanos.</div>`;
+  document.body.appendChild(root);
+
+  const limpiar = () => { const r = document.getElementById("printRoot"); if (r) r.remove(); window.removeEventListener("afterprint", limpiar); };
+  window.addEventListener("afterprint", limpiar);
+  setTimeout(() => { try { window.print(); } catch (e) {} }, 60);
+  setTimeout(limpiar, 60000);
+}
+
 function abrirDetalle(id) {
   const a = state.aspirantes.find(x => x.id === id); if (!a) return;
   const g = a.resultado.global, gcls = clsDePct(g);
@@ -181,6 +345,7 @@ function abrirDetalle(id) {
     ["Correo", a.datos.correo ? `<a href="mailto:${a.datos.correo}">${a.datos.correo}</a>` : ""],
     ["CURP", a.datos.curp], ["Nacimiento", a.datos.nacimiento ? fechaLarga(a.datos.nacimiento) : ""],
     ["Género", a.datos.genero], ["Escolaridad", a.datos.escolaridad], ["Puesto", a.datos.puesto],
+    ["Consentimiento", a.consentimiento && a.consentimiento.aceptado ? `Aceptó el aviso de privacidad · ${fechaLarga((a.consentimiento.fecha || "").slice(0, 10))}` : ""],
   ].filter(r => r[1]).map(r => `<div class="d-row"><span class="d-row__k">${r[0]}</span><span class="d-row__v">${r[1]}</span></div>`).join("");
 
   const bloquePuesto = ((PREGUNTAS_PUESTO && PREGUNTAS_PUESTO[a.datos.puesto]) || []).map(q => {
@@ -215,7 +380,11 @@ function abrirDetalle(id) {
   $("#drawer").innerHTML = `
     <div class="drawer__head">
       <div><div class="drawer__name">${a.datos.nombre}</div><div class="drawer__role">${a.datos.puesto} · ${fechaLarga(a.fecha)}</div></div>
-      <button class="icon-btn" id="drClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <div class="drawer__actions">
+        <button class="btn btn--sm btn--ghost" id="drResumen"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.5.4.8 1 .9 1.6h6.2c.1-.6.4-1.2.9-1.6A7 7 0 0 0 12 2z"/></svg>Resumen IA</button>
+        <button class="btn btn--sm btn--ghost" id="drPDF"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Exportar PDF</button>
+        <button class="icon-btn" id="drClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
     </div>
     <div class="drawer__body">
       <div class="score-hero">
@@ -254,6 +423,8 @@ function abrirDetalle(id) {
   $("#drawer").classList.add("is-on");
   const cerrar = () => { $("#drawerOverlay").classList.remove("is-on"); $("#drawer").classList.remove("is-on"); };
   $("#drClose").addEventListener("click", cerrar);
+  $("#drResumen").addEventListener("click", () => abrirResumenIA(a));
+  $("#drPDF").addEventListener("click", () => exportarReportePDF(a));
   $("#drawerOverlay").addEventListener("click", cerrar);
   $$("#drawer .dec-btn").forEach(b => b.addEventListener("click", () => {
     const k = b.dataset.d; a.decision = a.decision === k ? "" : k;
@@ -271,7 +442,12 @@ function puestosActuales() {
 
 function abrirConfig() {
   window.Store.leerConfig().then(function (cfg) {
-    var c = { titulo: (cfg && cfg.mensajeFinTitulo) || CONFIG.mensajeFinTitulo, cuerpo: (cfg && cfg.mensajeFinCuerpo) || CONFIG.mensajeFinCuerpo };
+    var c = {
+      titulo: (cfg && cfg.mensajeFinTitulo) || CONFIG.mensajeFinTitulo,
+      cuerpo: (cfg && cfg.mensajeFinCuerpo) || CONFIG.mensajeFinCuerpo,
+      avisoResp: (cfg && cfg.avisoResponsable) || CONFIG.avisoResponsable || "",
+      avisoCont: (cfg && cfg.avisoContacto) || CONFIG.avisoContacto || "",
+    };
     var pl = ((cfg && Array.isArray(cfg.puestos) && cfg.puestos.length) ? cfg.puestos : PUESTOS).slice();
     _abrirConfigUI(c, pl);
   });
@@ -290,6 +466,11 @@ function _abrirConfigUI(c, pl) {
       <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Lo que ve el aspirante al terminar.</p>
       <div class="field"><label class="field__label">Título</label><input class="input" id="cfgTit" value="${c.titulo.replace(/"/g, "&quot;")}"></div>
       <div class="field"><label class="field__label">Mensaje</label><textarea class="input" id="cfgCue" rows="4">${c.cuerpo}</textarea></div>
+
+      <div class="sec-title">Aviso de privacidad</div>
+      <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Responsable y correo para derechos ARCO. Aparecen en el aviso que el aspirante acepta antes de empezar.</p>
+      <div class="field"><label class="field__label">Responsable (empresa)</label><input class="input" id="cfgResp" value="${(c.avisoResp || "").replace(/"/g, "&quot;")}"></div>
+      <div class="field"><label class="field__label">Correo de contacto (ARCO)</label><input class="input" id="cfgCont" type="email" value="${(c.avisoCont || "").replace(/"/g, "&quot;")}"></div>
       <p class="cfg-error" id="cfgErr"></p>
     </div>
     <div class="modal__foot"><button class="btn btn--ghost" data-x>Cancelar</button><button class="btn btn--primary" id="cfgSave">Guardar</button></div>
@@ -315,9 +496,10 @@ function _abrirConfigUI(c, pl) {
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
   $("#cfgSave", ov).addEventListener("click", () => {
     const tit = $("#cfgTit", ov).value.trim(), cue = $("#cfgCue", ov).value.trim();
+    const resp = $("#cfgResp", ov).value.trim(), cont = $("#cfgCont", ov).value.trim();
     if (!pl.length) { $("#cfgErr", ov).textContent = "Deja al menos un puesto."; return; }
     if (!tit || !cue) { $("#cfgErr", ov).textContent = "El título y el mensaje no pueden quedar vacíos."; return; }
-    window.Store.guardarConfig({ mensajeFinTitulo: tit, mensajeFinCuerpo: cue, puestos: pl })
+    window.Store.guardarConfig({ mensajeFinTitulo: tit, mensajeFinCuerpo: cue, puestos: pl, avisoResponsable: resp, avisoContacto: cont })
       .then(function () { close(); toast("Configuración guardada."); })
       .catch(function () { $("#cfgErr", ov).textContent = "No se pudo guardar."; });
   });

@@ -13,6 +13,9 @@ const CONFIG = {
   empresa: "TEC CAPITAL",
   mensajeFinTitulo: "¡Listo! Concluiste tu evaluación",
   mensajeFinCuerpo: "Gracias por tu tiempo. El área de Recursos Humanos revisará tus respuestas y te contactará en un plazo de 2 a 3 días hábiles.",
+  avisoResponsable: "TEC CAPITAL Group",
+  avisoContacto: "privacidad@teccapital.com",
+  avisoVersion: "1.0",
 };
 
 /* Contraseña de acceso al panel de RH — CÁMBIALA aquí.

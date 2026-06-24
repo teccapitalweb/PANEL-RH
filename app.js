@@ -95,11 +95,38 @@ function renderBienvenida() {
         <div class="welcome__mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
         <h1 class="welcome__title">${CONFIG.titulo}</h1>
         <p class="welcome__sub">Bienvenido(a). Esta evaluación toma alrededor de 10 minutos. Solo toca la opción que mejor te describa — la mayoría de preguntas no tienen respuesta correcta o incorrecta.</p>
-        <button class="btn btn--xl btn--primary" id="goStart">Comenzar</button>
+        <label class="consent" for="consent"><input type="checkbox" id="consent"><span>He leído y acepto el <button type="button" class="linklike" id="verAviso">aviso de privacidad</button>.</span></label>
+        <button class="btn btn--xl btn--primary" id="goStart" disabled>Comenzar</button>
         <p class="welcome__foot">${CONFIG.empresa} · Recursos Humanos</p>
       </div>
     </div>`;
-  $("#goStart").addEventListener("click", () => { state.fase = "datos"; render(); });
+  const cb = $("#consent"), gs = $("#goStart");
+  cb.addEventListener("change", () => { gs.disabled = !cb.checked; });
+  $("#verAviso").addEventListener("click", abrirAviso);
+  gs.addEventListener("click", () => { if (!cb.checked) return; state.fase = "datos"; render(); });
+}
+
+function textoAviso() {
+  const r = CONFIG.avisoResponsable || CONFIG.empresa, c = CONFIG.avisoContacto || "";
+  return `
+    <p><strong>Responsable.</strong> ${r} es responsable del tratamiento de tus datos personales, conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP).</p>
+    <p><strong>Datos que recabamos.</strong> Nombre, teléfono, correo, CURP, fecha de nacimiento, género, escolaridad, puesto de interés y tus respuestas a esta evaluación.</p>
+    <p><strong>Finalidad.</strong> Evaluar tu perfil dentro de un proceso de selección de personal. No usamos tus datos para fines distintos ni los compartimos con terceros sin tu consentimiento, salvo obligación legal.</p>
+    <p><strong>Derechos ARCO.</strong> Puedes Acceder, Rectificar, Cancelar u Oponerte al tratamiento de tus datos${c ? `, escribiendo a <strong>${c}</strong>` : ""}.</p>
+    <p><strong>Consentimiento.</strong> Al marcar la casilla y comenzar la evaluación, aceptas este aviso de privacidad.</p>`;
+}
+
+function abrirAviso() {
+  const ov = document.createElement("div"); ov.className = "modal-overlay";
+  ov.innerHTML = `<div class="modal modal--aviso" role="dialog" aria-modal="true">
+    <h3>Aviso de privacidad</h3>
+    <div class="aviso-body">${textoAviso()}</div>
+    <div class="pw-actions"><button class="btn btn--primary" id="avClose">Entendido</button></div>
+  </div>`;
+  document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#avClose", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
 }
 
 function puestosActuales() { return (window.__PUESTOS_REMOTOS && window.__PUESTOS_REMOTOS.length) ? window.__PUESTOS_REMOTOS : PUESTOS; }
@@ -362,7 +389,7 @@ function nivelDim(pct) { return (NIVEL_DIM.find(n => pct >= n.min) || NIVEL_DIM[
 
 function guardarAspirante() {
   const resultado = calcularResultado(state.respuestas, state.atencion);
-  const registro = { id: "asp" + Date.now(), fecha: new Date().toISOString(), datos: state.datos, respuestas: state.respuestas, atencion: state.atencion, resultado };
+  const registro = { id: "asp" + Date.now(), fecha: new Date().toISOString(), datos: state.datos, respuestas: state.respuestas, atencion: state.atencion, resultado, consentimiento: { aceptado: true, fecha: new Date().toISOString(), version: CONFIG.avisoVersion, responsable: CONFIG.avisoResponsable } };
   window.Store.guardarAspirante(registro).catch(function (e) { console.warn("No se pudo guardar el aspirante:", e && e.message); });
   return registro;
 }
@@ -437,6 +464,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!cfg) return;
     if (cfg.mensajeFinTitulo) CONFIG.mensajeFinTitulo = cfg.mensajeFinTitulo;
     if (cfg.mensajeFinCuerpo) CONFIG.mensajeFinCuerpo = cfg.mensajeFinCuerpo;
+    if (cfg.avisoResponsable) CONFIG.avisoResponsable = cfg.avisoResponsable;
+    if (cfg.avisoContacto) CONFIG.avisoContacto = cfg.avisoContacto;
     if (Array.isArray(cfg.puestos) && cfg.puestos.length) window.__PUESTOS_REMOTOS = cfg.puestos;
   }).catch(function () {});
   $("#themeBtn").addEventListener("click", () => applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
