@@ -86,18 +86,17 @@ function SEED() {
 
 /* ---------- Carga / persistencia ---------- */
 function cargar() {
-  let arr = [];
-  try { arr = JSON.parse(localStorage.getItem("examenrh_aspirantes") || "[]"); } catch (e) {}
-  let demo = false;
-  if (!arr.length) { arr = SEED().map(a => ({ ...a })); demo = true; }
-  let evals = {}; try { evals = JSON.parse(localStorage.getItem("examenrh_eval") || "{}"); } catch (e) {}
-  arr.forEach(a => { if (evals[a.id]) { a.decision = evals[a.id].decision || ""; a.notas = evals[a.id].notas || ""; } });
-  return { arr, demo };
+  return window.Store.leerAspirantes().then(function (arr) {
+    var demo = false;
+    if (!arr.length && !window.Store.on) { arr = SEED().map(function (a) { return Object.assign({}, a); }); demo = true; }
+    if (!window.Store.on) {
+      var evals = window.Store.evalsLocal();
+      arr.forEach(function (a) { if (evals[a.id]) { a.decision = evals[a.id].decision || ""; a.notas = evals[a.id].notas || ""; } });
+    }
+    return { arr: arr, demo: demo };
+  });
 }
-function guardarEval(id, decision, notas) {
-  let evals = {}; try { evals = JSON.parse(localStorage.getItem("examenrh_eval") || "{}"); } catch (e) {}
-  evals[id] = { decision, notas }; try { localStorage.setItem("examenrh_eval", JSON.stringify(evals)); } catch (e) {}
-}
+function guardarEval(id, decision, notas) { window.Store.guardarEval(id, { decision: decision, notas: notas }).catch(function () {}); }
 function configActual() {
   let c = null; try { c = JSON.parse(localStorage.getItem("examenrh_config") || "null"); } catch (e) {}
   return { titulo: (c && c.mensajeFinTitulo) || CONFIG.mensajeFinTitulo, cuerpo: (c && c.mensajeFinCuerpo) || CONFIG.mensajeFinCuerpo };
@@ -111,7 +110,11 @@ function toast(msg) { const t = document.createElement("div"); t.className = "to
 
 /* ---------- Lista ---------- */
 function renderApp() {
-  const d = cargar(); state.aspirantes = d.arr; state.demo = d.demo;
+  $("#wrap").innerHTML = '<div class="page-head"><p style="color:var(--muted)">Cargando aspirantes…</p></div>';
+  cargar().then(function (d) { state.aspirantes = d.arr; state.demo = d.demo; _renderAppUI(); })
+    .catch(function () { $("#wrap").innerHTML = '<div class="page-head"><p>No se pudieron cargar los aspirantes.</p></div>'; });
+}
+function _renderAppUI() {
   const puestos = ["Todos", ...[...new Set(state.aspirantes.map(a => a.datos.puesto))].sort()];
   $("#wrap").innerHTML = `
     <div class="page-head">
@@ -267,8 +270,13 @@ function puestosActuales() {
 }
 
 function abrirConfig() {
-  const c = configActual();
-  let pl = puestosActuales().slice();
+  window.Store.leerConfig().then(function (cfg) {
+    var c = { titulo: (cfg && cfg.mensajeFinTitulo) || CONFIG.mensajeFinTitulo, cuerpo: (cfg && cfg.mensajeFinCuerpo) || CONFIG.mensajeFinCuerpo };
+    var pl = ((cfg && Array.isArray(cfg.puestos) && cfg.puestos.length) ? cfg.puestos : PUESTOS).slice();
+    _abrirConfigUI(c, pl);
+  });
+}
+function _abrirConfigUI(c, pl) {
   const ov = document.createElement("div"); ov.className = "modal-overlay";
   ov.innerHTML = `<div class="modal">
     <div class="modal__head"><h3>Configuración</h3><button class="icon-btn" data-x><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
@@ -309,10 +317,9 @@ function abrirConfig() {
     const tit = $("#cfgTit", ov).value.trim(), cue = $("#cfgCue", ov).value.trim();
     if (!pl.length) { $("#cfgErr", ov).textContent = "Deja al menos un puesto."; return; }
     if (!tit || !cue) { $("#cfgErr", ov).textContent = "El título y el mensaje no pueden quedar vacíos."; return; }
-    try { localStorage.setItem("examenrh_config", JSON.stringify({ mensajeFinTitulo: tit, mensajeFinCuerpo: cue })); } catch (e) {}
-    try { localStorage.setItem("examenrh_puestos", JSON.stringify(pl)); } catch (e) {}
-    // TODO firebase: setDoc(doc(db,"config","evaluacion"), { mensajeFinTitulo, mensajeFinCuerpo, puestos: pl })
-    close(); toast("Configuración guardada.");
+    window.Store.guardarConfig({ mensajeFinTitulo: tit, mensajeFinCuerpo: cue, puestos: pl })
+      .then(function () { close(); toast("Configuración guardada."); })
+      .catch(function () { $("#cfgErr", ov).textContent = "No se pudo guardar."; });
   });
 }
 
@@ -327,16 +334,28 @@ function bootApp() { $("#login").style.display = "none"; $("#app").classList.add
 
 document.addEventListener("DOMContentLoaded", () => {
   try { applyTheme(localStorage.getItem("examenrh-theme") || "light"); } catch (e) { applyTheme("light"); }
-  let yaOk = false; try { yaOk = sessionStorage.getItem("examenrh_rh_ok") === "1"; } catch (e) {}
-  if (yaOk) bootApp();
-  const entrar = () => {
-    if ($("#pw").value === RH_PASS) { try { sessionStorage.setItem("examenrh_rh_ok", "1"); } catch (e) {} bootApp(); }
-    else { $("#loginHint").textContent = "Contraseña incorrecta."; $("#pw").value = ""; $("#pw").focus(); }
-  };
+  const FON = !!window.FIREBASE_ON;
+  let entrar;
+  if (FON) {
+    const ef = $("#emailField"); if (ef) ef.hidden = false;
+    $("#loginHint").textContent = "Acceso con tu cuenta de Recursos Humanos.";
+    if (window.auth) window.auth.onAuthStateChanged(function (u) { if (u) bootApp(); });
+    entrar = function () {
+      window.Store.login(($("#email").value || "").trim(), $("#pw").value)
+        .catch(function () { $("#loginHint").textContent = "Correo o contraseña incorrectos."; $("#pw").value = ""; });
+    };
+  } else {
+    let yaOk = false; try { yaOk = sessionStorage.getItem("examenrh_rh_ok") === "1"; } catch (e) {}
+    if (yaOk) bootApp();
+    entrar = function () {
+      if ($("#pw").value === RH_PASS) { try { sessionStorage.setItem("examenrh_rh_ok", "1"); } catch (e) {} bootApp(); }
+      else { $("#loginHint").textContent = "Contraseña incorrecta."; $("#pw").value = ""; $("#pw").focus(); }
+    };
+  }
   $("#entrarBtn").addEventListener("click", entrar);
   $("#pw").addEventListener("keydown", e => { if (e.key === "Enter") entrar(); });
   $("#themeBtn").addEventListener("click", () => applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
-  $("#logoutBtn").addEventListener("click", () => { try { sessionStorage.removeItem("examenrh_rh_ok"); } catch (e) {} $("#app").classList.remove("is-on"); $("#login").style.display = "grid"; const p = $("#pw"); if (p) { p.value = ""; p.focus(); } });
+  $("#logoutBtn").addEventListener("click", () => { window.Store.logout(); try { sessionStorage.removeItem("examenrh_rh_ok"); } catch (e) {} $("#app").classList.remove("is-on"); $("#login").style.display = "grid"; const p = $("#pw"); if (p) { p.value = ""; p.focus(); } });
   $("#cfgBtn").addEventListener("click", abrirConfig);
 });
 })(window.__EVAL.PREGUNTAS, window.__EVAL.DIMENSIONES, window.__EVAL.NIVEL_DIM, window.__EVAL.CRITICAS, window.__EVAL.CONFIG, window.__EVAL.RH_PASS, window.__EVAL.PUESTOS, window.__EVAL.PREGUNTAS_PUESTO);

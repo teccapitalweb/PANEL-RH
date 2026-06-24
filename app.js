@@ -102,10 +102,7 @@ function renderBienvenida() {
   $("#goStart").addEventListener("click", () => { state.fase = "datos"; render(); });
 }
 
-function puestosActuales() {
-  try { const p = JSON.parse(localStorage.getItem("examenrh_puestos") || "null"); if (Array.isArray(p) && p.length) return p; } catch (e) {}
-  return PUESTOS;
-}
+function puestosActuales() { return (window.__PUESTOS_REMOTOS && window.__PUESTOS_REMOTOS.length) ? window.__PUESTOS_REMOTOS : PUESTOS; }
 
 function renderDatos() {
   setProgreso(0.05, "Tus datos");
@@ -366,12 +363,7 @@ function nivelDim(pct) { return (NIVEL_DIM.find(n => pct >= n.min) || NIVEL_DIM[
 function guardarAspirante() {
   const resultado = calcularResultado(state.respuestas, state.atencion);
   const registro = { id: "asp" + Date.now(), fecha: new Date().toISOString(), datos: state.datos, respuestas: state.respuestas, atencion: state.atencion, resultado };
-  try {
-    const k = "examenrh_aspirantes";
-    const arr = JSON.parse(localStorage.getItem(k) || "[]");
-    arr.push(registro); localStorage.setItem(k, JSON.stringify(arr));
-  } catch (e) {}
-  // TODO firebase: addDoc(collection(db,"aspirantes"), registro) → aparece en el panel de RH
+  window.Store.guardarAspirante(registro).catch(function (e) { console.warn("No se pudo guardar el aspirante:", e && e.message); });
   return registro;
 }
 
@@ -440,10 +432,15 @@ function abrirAccesoRH() {
 
 document.addEventListener("DOMContentLoaded", () => {
   try { applyTheme(localStorage.getItem("examenrh-theme") || "light"); } catch (e) { applyTheme("light"); }
-  // Mensaje final editable por RH (se guarda desde el panel)
-  try { const c = JSON.parse(localStorage.getItem("examenrh_config") || "null"); if (c) { if (c.mensajeFinTitulo) CONFIG.mensajeFinTitulo = c.mensajeFinTitulo; if (c.mensajeFinCuerpo) CONFIG.mensajeFinCuerpo = c.mensajeFinCuerpo; } } catch (e) {}
+  // Config (mensaje final + puestos) desde Firebase o localStorage
+  window.Store.leerConfig().then(function (cfg) {
+    if (!cfg) return;
+    if (cfg.mensajeFinTitulo) CONFIG.mensajeFinTitulo = cfg.mensajeFinTitulo;
+    if (cfg.mensajeFinCuerpo) CONFIG.mensajeFinCuerpo = cfg.mensajeFinCuerpo;
+    if (Array.isArray(cfg.puestos) && cfg.puestos.length) window.__PUESTOS_REMOTOS = cfg.puestos;
+  }).catch(function () {});
   $("#themeBtn").addEventListener("click", () => applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
-  const _rh = $("#rhAccess"); if (_rh) _rh.addEventListener("click", abrirAccesoRH);
+  const _rh = $("#rhAccess"); if (_rh) _rh.addEventListener("click", function () { if (window.FIREBASE_ON) { window.location.href = "panel.html"; } else { abrirAccesoRH(); } });
   document.addEventListener("click", () => $$(".datepick").forEach(d => d.classList.remove("is-open")));
   render();
 });

@@ -1,9 +1,10 @@
 /* =====================================================================
-   firebase-config.js — Evaluación de Ingreso
+   firebase-config.js — Evalua RH
    ---------------------------------------------------------------------
-   El kiosko del aspirante y el panel privado de RH comparten el MISMO
-   proyecto de Firebase. El aspirante (sin login) solo crea su registro
-   en la colección "aspirantes"; RH (con login) lo lee y califica.
+   Llena firebaseConfig con los datos de TU proyecto (consola de Firebase
+   → Configuración del proyecto → Tus apps → Web). Si lo dejas en "TODO",
+   la app corre en MODO DEMO (localStorage) y nada se rompe.
+   El kiosko y el panel comparten el MISMO proyecto.
    ===================================================================== */
 const firebaseConfig = {
   apiKey: "TODO",
@@ -13,6 +14,23 @@ const firebaseConfig = {
   messagingSenderId: "TODO",
   appId: "TODO",
 };
-/* Reglas sugeridas:
-   - aspirantes: create público (el kiosko escribe), read/update solo RH autenticado.
-   - El texto del popup final vive en config/evaluacion (editable por RH). */
+
+/* ID del espacio de la empresa (tenant). Para una sola empresa déjalo así.
+   Si luego sirves a varias, usa un ID distinto por cliente. */
+const EMPRESA_ID = "default";
+
+(function () {
+  var on = false, db = null, auth = null;
+  var real = firebaseConfig.apiKey && firebaseConfig.apiKey !== "TODO";
+  if (real && typeof firebase !== "undefined") {
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+      auth = firebase.auth();
+      on = true;
+    } catch (e) { console.warn("Firebase no inició; modo demo:", e && e.message); }
+  }
+  if (typeof window !== "undefined") {
+    window.db = db; window.auth = auth; window.FIREBASE_ON = on; window.EMPRESA_ID = EMPRESA_ID;
+  }
+})();
