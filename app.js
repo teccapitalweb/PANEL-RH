@@ -205,26 +205,44 @@ function renderInstrucciones() {
       </div>
     </div>`;
   $("#goExam").addEventListener("click", () => {
-    state.preguntas = PREGUNTAS.concat((typeof PREGUNTAS_PUESTO !== "undefined" && PREGUNTAS_PUESTO[state.datos.puesto]) || []);
+    state.preguntas = construirExamen(state.datos.puesto);
     state.fase = "examen"; state.qIdx = 0; render();
   });
+}
+
+function barajar(a) { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = r[i]; r[i] = r[j]; r[j] = t; } return r; }
+function ordenOpciones(q) {
+  if (!q.opciones) return null;
+  if (q.opciones === L || q.tipo === "trampa") return q.opciones.map((_, i) => i); // escala Likert y trampas: orden fijo
+  const normales = [], otros = [];
+  q.opciones.forEach((o, i) => { (o.otro ? otros : normales).push(i); });
+  return barajar(normales).concat(otros); // baraja distractores, "Otro" siempre al final
+}
+function construirExamen(puesto) {
+  const rol = (typeof PREGUNTAS_PUESTO !== "undefined" && PREGUNTAS_PUESTO[puesto]) || [];
+  const extra = (typeof TRAMPAS !== "undefined" ? TRAMPAS : []).concat(typeof ESPEJO_PREGUNTAS !== "undefined" ? ESPEJO_PREGUNTAS : []);
+  const base = PREGUNTAS.concat(rol, extra);
+  const copia = base.map(q => { const nq = Object.assign({}, q); if (nq.opciones) nq.__ord = ordenOpciones(nq); return nq; });
+  return barajar(copia);
 }
 
 function renderPregunta() {
   const lista = state.preguntas && state.preguntas.length ? state.preguntas : PREGUNTAS;
   const total = lista.length;
   const q = lista[state.qIdx];
+  state.qStart = Date.now();
   const tag = q.tag || DIMENSIONES[q.dim] || "";
   setProgreso((state.qIdx + 1) / (total + 1), `Pregunta ${state.qIdx + 1} de ${total}`);
   const prev = state.respuestas[q.id];
   if (q.tipo === "abierta") return renderAbierta(q, tag, prev);
+  const orden = q.__ord || q.opciones.map((_, i) => i);
   $("#stage").innerHTML = `
     <div class="screen">
       <div class="q-tag">${tag}</div>
       <div class="q-text">${q.texto}</div>
       <div class="optgrid">
-        ${q.opciones.map((o, i) => `<button type="button" class="opt ${prev && prev.optIdx === i ? "is-sel" : ""}" data-i="${i}" data-otro="${o.otro ? 1 : 0}">
-          <span class="opt__dot"></span><span class="opt__t">${o.t}</span></button>`).join("")}
+        ${orden.map(i => { const o = q.opciones[i]; return `<button type="button" class="opt ${prev && prev.optIdx === i ? "is-sel" : ""}" data-i="${i}" data-otro="${o.otro ? 1 : 0}">
+          <span class="opt__dot"></span><span class="opt__t">${o.t}</span></button>`; }).join("")}
       </div>
       <div class="otro" id="otroBox" ${prev && prev.otro ? "" : "hidden"}>
         <label class="porque__label" for="otroTA">Especifica tu respuesta</label>
@@ -257,7 +275,7 @@ function renderPregunta() {
       otroTexto = ($("#otroTA").value || "").trim();
       if (!otroTexto) { $("#qErr").textContent = "Escribe tu respuesta en 'Otro'."; return; }
     }
-    state.respuestas[q.id] = { optIdx: i, v: opt.v, dim: q.dim, correcta: !!opt.correcta, info: !!q.info, otro: !!opt.otro, otroTexto, porque: $("#porqueTA") ? $("#porqueTA").value.trim() : "" };
+    state.respuestas[q.id] = { optIdx: i, v: opt.v, dim: q.dim, correcta: !!opt.correcta, info: !!q.info, otro: !!opt.otro, otroTexto, porque: $("#porqueTA") ? $("#porqueTA").value.trim() : "", ms: Date.now() - (state.qStart || Date.now()), esTrampa: q.tipo === "trampa", correctaTrampa: q.tipo === "trampa" ? (i === q.correctaIdx) : undefined };
     avanzarPregunta();
   });
   $("#qBack").addEventListener("click", () => {
@@ -283,7 +301,7 @@ function renderAbierta(q, tag, prev) {
   $("#qNext").addEventListener("click", () => {
     const t = $("#abiertaTA").value.trim();
     if (!t) { $("#abErr").textContent = "Escribe tu respuesta para continuar."; return; }
-    state.respuestas[q.id] = { tipo: "abierta", texto: t, dim: q.dim, tag, abierta: true };
+    state.respuestas[q.id] = { tipo: "abierta", texto: t, dim: q.dim, tag, abierta: true, ms: Date.now() - (state.qStart || Date.now()) };
     avanzarPregunta();
   });
   $("#qBack").addEventListener("click", () => {
@@ -387,8 +405,36 @@ function calcularResultado(resp, aten) {
 }
 function nivelDim(pct) { return (NIVEL_DIM.find(n => pct >= n.min) || NIVEL_DIM[NIVEL_DIM.length - 1]).label; }
 
+function calcularConfianza(resp) {
+  const arr = Object.values(resp);
+  // Velocidad: respuestas contestadas demasiado rápido (no abiertas)
+  const conMs = arr.filter(r => typeof r.ms === "number" && !r.abierta);
+  const UMBRAL = 1500;
+  const rapidas = conMs.filter(r => r.ms < UMBRAL).length;
+  const tiempos = conMs.map(r => r.ms).sort((a, b) => a - b);
+  const medianaMs = tiempos.length ? tiempos[Math.floor(tiempos.length / 2)] : null;
+  const calidad = conMs.length ? { rapidas, total: conMs.length, medianaMs, bandera: conMs.length >= 5 && (rapidas / conMs.length) >= 0.4 } : null;
+  // Control de atención (trampas)
+  const traps = arr.filter(r => r.esTrampa);
+  const fallidas = traps.filter(r => !r.correctaTrampa).length;
+  const control = traps.length ? { total: traps.length, fallidas, bandera: fallidas > 0 } : null;
+  // Consistencia (preguntas espejo)
+  let pares = 0, consistentes = 0;
+  (typeof ESPEJOS !== "undefined" ? ESPEJOS : []).forEach(p => {
+    const a = resp[p.a], b = resp[p.b];
+    if (a && b && typeof a.v === "number" && typeof b.v === "number") {
+      pares++;
+      const objetivo = p.inverso ? (3 - b.v) : b.v;
+      if (Math.abs(a.v - objetivo) <= 1) consistentes++;
+    }
+  });
+  const consistencia = pares ? { pares, consistentes, pct: consistentes / pares, bandera: (consistentes / pares) < 0.5 } : null;
+  return { calidad, control, consistencia };
+}
+
 function guardarAspirante() {
   const resultado = calcularResultado(state.respuestas, state.atencion);
+  Object.assign(resultado, calcularConfianza(state.respuestas));
   const registro = { id: "asp" + Date.now(), fecha: new Date().toISOString(), datos: state.datos, respuestas: state.respuestas, atencion: state.atencion, resultado, consentimiento: { aceptado: true, fecha: new Date().toISOString(), version: CONFIG.avisoVersion, responsable: CONFIG.avisoResponsable } };
   window.Store.guardarAspirante(registro).catch(function (e) { console.warn("No se pudo guardar el aspirante:", e && e.message); });
   return registro;

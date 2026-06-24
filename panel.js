@@ -66,6 +66,9 @@ function genAspirante(b, idx) {
   });
   const atencion = { avgMs: b.ms, score: b.ms < 320 ? 3 : b.ms < 460 ? 2 : b.ms < 650 ? 1 : 0, intentos: [b.ms - 18, b.ms + 22, b.ms, b.ms + 9, b.ms - 7] };
   const resultado = calcularResultado(respuestas, atencion);
+  resultado.calidad = (b.conf && b.conf.calidad) || { rapidas: 2, total: 30, medianaMs: 3400, bandera: false };
+  resultado.control = (b.conf && b.conf.control) || { total: 2, fallidas: 0, bandera: false };
+  resultado.consistencia = (b.conf && b.conf.consistencia) || { pares: 2, consistentes: 2, pct: 1, bandera: false };
   const first = b.nombre.split(" ")[0].toLowerCase();
   const nac = ["1996-03-12", "1998-07-05", "1993-11-20", "2000-01-15", "1991-09-09"][idx % 5];
   const datos = { nombre: b.nombre, tel: "238 123 45" + (10 + idx), correo: first + idx + "@correo.com", curp: "", nacimiento: nac, genero: idx % 2 ? "Femenino" : "Masculino", escolaridad: ["Secundaria", "Preparatoria", "Técnico", "Licenciatura"][idx % 4], puesto: b.puesto };
@@ -78,7 +81,7 @@ function SEED() {
     { nombre: "José Luis Ramírez", puesto: "Ventas", target: 2.4, ms: 360, fecha: fdRel(-1) },
     { nombre: "Diana Patricia Cruz", puesto: "Atención a cliente", target: 2, ms: 430, fecha: fdRel(-2), decision: "revision" },
     { nombre: "Carlos Méndez Vargas", puesto: "Cajero(a)", target: 2.2, overrides: { honestidad: 0 }, ms: 400, fecha: fdRel(-3), notas: "Revisar respuestas de honestidad." },
-    { nombre: "Luis Ángel Torres", puesto: "Almacén", target: 1, generico: true, ms: 620, fecha: fdRel(-4), decision: "descartar" },
+    { nombre: "Luis Ángel Torres", puesto: "Almacén", target: 1, generico: true, ms: 620, fecha: fdRel(-4), decision: "descartar", conf: { calidad: { rapidas: 19, total: 30, medianaMs: 680, bandera: true }, control: { total: 2, fallidas: 1, bandera: true }, consistencia: { pares: 2, consistentes: 0, pct: 0, bandera: true } } },
   ];
   window.__seed = base.map((b, i) => genAspirante(b, i));
   return window.__seed;
@@ -203,6 +206,11 @@ function generarResumen(a) {
   if (fuertes.length) S.push(`Destaca en ${fuertes.map(f => nom(f.d)).join(" y ")}.`);
   if (debiles.length) S.push(`Principales áreas de oportunidad: ${debiles.slice(0, 3).map(f => nom(f.d)).join(", ")}.`);
   if (r.banderas && r.banderas.length) S.push(`Atención: señales bajas en ${r.banderas.map(d => nom(d)).join(" y ")}; conviene profundizar en la entrevista antes de decidir.`);
+  const alertasConf = [];
+  if (r.calidad && r.calidad.bandera) alertasConf.push("respuestas apresuradas");
+  if (r.control && r.control.bandera) alertasConf.push("falló el control de atención");
+  if (r.consistencia && r.consistencia.bandera) alertasConf.push("respuestas inconsistentes");
+  if (alertasConf.length) S.push(`Confiabilidad: el patrón de respuesta muestra ${alertasConf.join(", ")}; conviene tomar el puntaje con cautela.`);
   if (a.decision === "contratar") S.push("RH marcó este perfil como candidato a contratar.");
   else if (a.decision === "descartar") S.push("RH marcó este perfil para descartar.");
   else if (a.decision === "revision") S.push("RH dejó este perfil en revisión.");
@@ -283,6 +291,12 @@ function exportarReportePDF(a) {
     ? `<span class="pr-dec pr-dec--${DEC[a.decision].cls}">${DEC[a.decision].t}</span>`
     : `<span class="pr-dec pr-dec--none">Sin decisión registrada</span>`;
   const at = a.atencion || {};
+  const cf = a.resultado;
+  const confLineas = [];
+  if (cf.calidad) confLineas.push(`<div class="pr-row"><span>Ritmo de respuesta</span><span>${cf.calidad.bandera ? "Apresurado" : "Normal"} (${cf.calidad.rapidas}/${cf.calidad.total} rápidas)</span></div>`);
+  if (cf.control) confLineas.push(`<div class="pr-row"><span>Control de atención</span><span>${cf.control.fallidas === 0 ? "Aprobado" : cf.control.fallidas + " fallida(s)"}</span></div>`);
+  if (cf.consistencia) confLineas.push(`<div class="pr-row"><span>Consistencia</span><span>${pct100(cf.consistencia.pct)}% (${cf.consistencia.consistentes}/${cf.consistencia.pares})</span></div>`);
+  const confPR = confLineas.length ? `<div class="pr-sec">Confianza en la respuesta</div><div class="pr-rows">${confLineas.join("")}</div>` : "";
   const resp = CONFIG.avisoResponsable || CONFIG.empresa;
   const contacto = [a.datos.tel, a.datos.correo, a.datos.curp].filter(Boolean).join("&nbsp;&nbsp;·&nbsp;&nbsp;");
   const consent = a.consentimiento && a.consentimiento.aceptado
@@ -319,6 +333,7 @@ function exportarReportePDF(a) {
     <div class="pr-decline">${dec}</div>
     ${a.notas ? `<div class="pr-notas"><b>Notas:</b> ${a.notas}</div>` : ""}
 
+    ${confPR}
     <div class="pr-sec">Privacidad</div>
     <div class="pr-rows"><div class="pr-row"><span>Consentimiento (LFPDPPP)</span><span>${consent}</span></div></div>
 
@@ -376,6 +391,14 @@ function abrirDetalle(id) {
   }).join("");
 
   const at = a.atencion || {}; const atCls = clsDePct((at.score || 0) / 3);
+  const cf = a.resultado;
+  const confRows = [];
+  if (cf.calidad) confRows.push(`<div class="dimrow"><div class="dimrow__top"><span class="dimrow__name">Ritmo de respuesta</span><span class="badge badge--${cf.calidad.bandera ? "bad" : "ok"}">${cf.calidad.bandera ? "Apresurado" : "Normal"}</span></div><div class="conf-sub">${cf.calidad.rapidas} de ${cf.calidad.total} respuestas muy rápidas · mediana ${cf.calidad.medianaMs} ms</div></div>`);
+  if (cf.control) confRows.push(`<div class="dimrow"><div class="dimrow__top"><span class="dimrow__name">Control de atención</span><span class="badge badge--${cf.control.bandera ? "bad" : "ok"}">${cf.control.fallidas === 0 ? "Aprobado" : cf.control.fallidas + " fallida(s)"}</span></div><div class="conf-sub">${cf.control.total - cf.control.fallidas} de ${cf.control.total} preguntas de control correctas</div></div>`);
+  if (cf.consistencia) confRows.push(`<div class="dimrow"><div class="dimrow__top"><span class="dimrow__name">Consistencia</span><span class="badge badge--${cf.consistencia.bandera ? "bad" : "ok"}">${pct100(cf.consistencia.pct)}%</span></div><div class="conf-sub">${cf.consistencia.consistentes} de ${cf.consistencia.pares} pares de preguntas espejo coinciden</div></div>`);
+  const confSection = confRows.length ? `<div class="sec-title">Confianza en la respuesta</div>${confRows.join("")}` : "";
+  const confAlerta = (cf.calidad && cf.calidad.bandera) || (cf.control && cf.control.bandera) || (cf.consistencia && cf.consistencia.bandera);
+  const confChip = confAlerta ? `<span class="flag flag--conf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>Revisar confiabilidad</span>` : "";
 
   $("#drawer").innerHTML = `
     <div class="drawer__head">
@@ -392,7 +415,7 @@ function abrirDetalle(id) {
         <div class="score-hero__meta">
           <div class="score-hero__lbl">Puntaje global</div>
           <div class="score-hero__nivel">${nivelDimObj(g).label}</div>
-          <div class="flags-row">${a.resultado.banderas.length ? a.resultado.banderas.map(d => `<span class="flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/></svg>${DIMENSIONES[d]} baja</span>`).join("") : `<span class="badge badge--ok">Sin banderas</span>`}</div>
+          <div class="flags-row">${a.resultado.banderas.length ? a.resultado.banderas.map(d => `<span class="flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/></svg>${DIMENSIONES[d]} baja</span>`).join("") : `<span class="badge badge--ok">Sin banderas</span>`}${confChip}</div>
         </div>
       </div>
 
@@ -403,6 +426,7 @@ function abrirDetalle(id) {
       ${dims}
       <div class="d-row"><span class="d-row__k">Aciertos de intelecto</span><span class="d-row__v">${a.resultado.aciertosIntelecto} de 3</span></div>
       <div class="d-row"><span class="d-row__k">Reacción promedio</span><span class="d-row__v"><span class="dot dot--${atCls}"></span> ${at.avgMs || "—"} ms</span></div>
+      ${confSection}
 
       <div class="sec-title">Entrevista (evalúa tú)</div>
       ${abiertas}

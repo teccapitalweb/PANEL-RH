@@ -188,6 +188,28 @@ const NIVEL_DIM = [
 /* Dimensiones críticas: si salen bajas, levantan bandera para RH */
 const CRITICAS = ["honestidad", "juicio"];
 
+/* ---------- Control de atención (preguntas trampa) ---------- */
+const TRAMPAS = [
+  { id: "trap1", tipo: "trampa", dim: "control", sinPorque: true,
+    texto: "Para confirmar que estás leyendo con atención, selecciona la opción «De acuerdo».",
+    opciones: [{ t: "Totalmente de acuerdo" }, { t: "De acuerdo" }, { t: "En desacuerdo" }, { t: "Totalmente en desacuerdo" }], correctaIdx: 1 },
+  { id: "trap2", tipo: "trampa", dim: "control", sinPorque: true,
+    texto: "Esta pregunta es de control. Para mostrar que lees cada reactivo, selecciona la opción «Opción C».",
+    opciones: [{ t: "Opción A" }, { t: "Opción B" }, { t: "Opción C" }, { t: "Opción D" }], correctaIdx: 2 },
+];
+
+/* ---------- Preguntas espejo (índice de consistencia) ---------- */
+const ESPEJO_PREGUNTAS = [
+  { id: "esp1a", dim: "control", sinPorque: true, texto: "Sigo las reglas del trabajo aunque nadie me esté observando.", opciones: L },
+  { id: "esp1b", dim: "control", sinPorque: true, texto: "Si estoy seguro de que nadie se va a enterar, no pasa nada por romper una regla menor.", opciones: L },
+  { id: "esp2a", dim: "control", sinPorque: true, texto: "Me gusta ayudar a un cliente aunque no sea exactamente mi tarea.", opciones: L },
+  { id: "esp2b", dim: "control", sinPorque: true, texto: "Si algo no me corresponde, no es mi problema atenderlo.", opciones: L },
+];
+const ESPEJOS = [
+  { a: "esp1a", b: "esp1b", inverso: true },
+  { a: "esp2a", b: "esp2b", inverso: true },
+];
+
 /* =====================================================================
    Preguntas ESPECÍFICAS por puesto. Se agregan después de las generales,
    según el puesto que elija el aspirante. Mismas reglas que las generales:
