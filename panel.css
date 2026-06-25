@@ -402,3 +402,19 @@ tbody tr:last-child td { border-bottom: none; }
 .dash-seg--warn { background: var(--warn); }
 .dash-seg--ok { background: var(--good); }
 .dash-seg--bad { background: var(--bad); }
+
+/* ---------- Comparativo en PDF ---------- */
+.cmp-actions { display: flex; align-items: center; gap: 8px; }
+#printRoot .prc-legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 4px 0 10px; }
+#printRoot .prc-leg { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #1c2230; }
+#printRoot .prc-leg i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+#printRoot .prc-chart { margin: 4px 0 8px; }
+#printRoot .prc-chart svg { max-width: 100%; height: auto; }
+#printRoot .prc-chart .cmp-gridline { stroke: #e3e6eb; }
+#printRoot .prc-chart .cmp-axis { stroke: #9aa1ad; }
+#printRoot .prc-chart .cmp-ylabel, #printRoot .prc-chart .cmp-glabel { fill: #5b6270; }
+#printRoot .prc-chart .cmp-vlabel { fill: #8a90a0; }
+#printRoot .prc-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+#printRoot .prc-table th, #printRoot .prc-table td { padding: 5px 8px; text-align: center; border-bottom: 1px solid #e6e8ee; }
+#printRoot .prc-table thead th { background: #f4f5f8; color: #1c2230; }
+#printRoot .prc-table tbody th { text-align: left; color: #5b6270; font-weight: 600; }

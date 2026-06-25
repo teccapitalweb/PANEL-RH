@@ -287,6 +287,57 @@ function svgBarrasAgrupadas(grupos, series, cols) {
   return s + `</svg>`;
 }
 
+function exportarComparadorPDF(sel) {
+  const DIM_CORTO = { perfil: "Sobre ti", personalidad: "Personalidad", social: "Sociales", intelecto: "Intelecto", juicio: "Juicio", servicio: "Servicio", estres: "Estrés", psicosocial: "Psicosocial", honestidad: "Honestidad", logistica: "Disponib.", atencion: "Atención", puesto: "Puesto", entrevista: "Entrevista" };
+  const corto = d => DIM_CORTO[d] || DIMENSIONES[d] || d;
+  const COLS = ["#3B82F6", "#F59E0B", "#22C55E"];
+  const dimKeys = Object.keys(DIMENSIONES).filter(d => d !== "atencion" && sel.some(a => a.resultado.porDim[d]));
+  const gVals = sel.map(a => pct100(a.resultado.global));
+  const ajVals = sel.map(a => a.resultado.puesto ? pct100(a.resultado.puesto.pct) : null);
+  const series = sel.map(a => a.datos.nombre);
+  const grupos = [{ label: "Global", vals: gVals }];
+  if (ajVals.some(v => v != null)) grupos.push({ label: "Ajuste", vals: ajVals });
+  dimKeys.forEach(d => grupos.push({ label: corto(d), vals: sel.map(a => a.resultado.porDim[d] ? pct100(a.resultado.porDim[d].pct) : null) }));
+  const svg = svgBarrasAgrupadas(grupos, series, COLS);
+  const legend = series.map((n, i) => `<span class="prc-leg"><i style="background:${COLS[i]}"></i>${n}</span>`).join("");
+
+  const banVals = sel.map(a => a.resultado.banderas.length);
+  const confVals = sel.map(a => { const cf = a.resultado; return ((cf.calidad && cf.calidad.bandera) || (cf.control && cf.control.bandera) || (cf.consistencia && cf.consistencia.bandera)) ? "Revisar" : "OK"; });
+  const reacVals = sel.map(a => (a.atencion && a.atencion.avgMs) || null);
+  const estVals = sel.map(a => ESTADOS[estadoDe(a)].t);
+  const rowTxt = (label, vals, fmt) => `<tr><th>${label}</th>${vals.map(v => `<td>${fmt ? fmt(v) : (v == null ? "—" : v)}</td>`).join("")}</tr>`;
+  const pctF = v => v == null ? "—" : v + "%";
+  const filas = [
+    rowTxt("Puntaje global", gVals, v => v),
+    ajVals.some(v => v != null) ? rowTxt("Ajuste al puesto", ajVals, pctF) : "",
+    ...dimKeys.map(d => rowTxt(DIMENSIONES[d], sel.map(a => a.resultado.porDim[d] ? pct100(a.resultado.porDim[d].pct) : null), pctF)),
+    rowTxt("Banderas críticas", banVals, v => v),
+    rowTxt("Confiabilidad", confVals),
+    rowTxt("Reacción", reacVals, v => v == null ? "—" : v + " ms"),
+    rowTxt("Estado", estVals),
+  ].join("");
+  const resp = CONFIG.avisoResponsable || CONFIG.empresa;
+  const hoy = fechaLarga(new Date().toISOString());
+
+  const prev = document.getElementById("printRoot"); if (prev) prev.remove();
+  const root = document.createElement("div"); root.id = "printRoot";
+  root.innerHTML = `
+    <div class="pr-head"><div><div class="pr-head__t">${resp}</div><div class="pr-head__sub">Comparativo de finalistas</div></div><div class="pr-head__date">Generado: ${hoy}</div></div>
+    <div class="pr-name">${series.length} finalistas comparados</div>
+    <div class="pr-role">${sel.map(a => `${a.datos.nombre} (${a.datos.puesto})`).join(" · ")}</div>
+    <div class="pr-sec">Comparativo por dimensión</div>
+    <div class="prc-legend">${legend}</div>
+    <div class="prc-chart">${svg}</div>
+    <div class="pr-sec">Detalle</div>
+    <table class="prc-table"><thead><tr><th></th>${series.map(n => `<th>${n}</th>`).join("")}</tr></thead><tbody>${filas}</tbody></table>
+    <div class="pr-foot">Evalua RH · ${resp} · Documento confidencial para uso interno de Recursos Humanos.</div>`;
+  document.body.appendChild(root);
+  const limpiar = () => { const r = document.getElementById("printRoot"); if (r) r.remove(); window.removeEventListener("afterprint", limpiar); };
+  window.addEventListener("afterprint", limpiar);
+  setTimeout(() => { try { window.print(); } catch (e) {} }, 60);
+  setTimeout(limpiar, 60000);
+}
+
 function abrirComparador(ids) {
   const sel = ids.map(id => state.aspirantes.find(a => a.id === id)).filter(Boolean);
   if (sel.length < 2) return;
@@ -314,7 +365,7 @@ function abrirComparador(ids) {
 
   const ov = document.createElement("div"); ov.className = "modal-overlay";
   ov.innerHTML = `<div class="modal modal--cmp" role="dialog" aria-modal="true">
-    <div class="resumen-head"><h3>Comparar finalistas</h3><button class="icon-btn" id="cmpClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <div class="resumen-head"><h3>Comparar finalistas</h3><div class="cmp-actions"><button class="btn btn--sm btn--ghost" id="cmpPDF"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Exportar PDF</button><button class="icon-btn" id="cmpClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div></div>
     ${legend}
     <div class="cmp-chart">${svgBarrasAgrupadas(grupos, series, COLS)}</div>
     <div class="cmp-wrap"><table class="cmp-table">
@@ -331,6 +382,7 @@ function abrirComparador(ids) {
   document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
   const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
   $("#cmpClose", ov).addEventListener("click", close);
+  $("#cmpPDF", ov).addEventListener("click", () => exportarComparadorPDF(sel));
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
 }
 
