@@ -188,15 +188,10 @@ const NIVEL_DIM = [
 /* Dimensiones críticas: si salen bajas, levantan bandera para RH */
 const CRITICAS = ["honestidad", "juicio"];
 
-/* ---------- Control de atención (preguntas trampa) ---------- */
-const TRAMPAS = [
-  { id: "trap1", tipo: "trampa", dim: "control", sinPorque: true,
-    texto: "Para confirmar que estás leyendo con atención, selecciona la opción «De acuerdo».",
-    opciones: [{ t: "Totalmente de acuerdo" }, { t: "De acuerdo" }, { t: "En desacuerdo" }, { t: "Totalmente en desacuerdo" }], correctaIdx: 1 },
-  { id: "trap2", tipo: "trampa", dim: "control", sinPorque: true,
-    texto: "Esta pregunta es de control. Para mostrar que lees cada reactivo, selecciona la opción «Opción C».",
-    opciones: [{ t: "Opción A" }, { t: "Opción B" }, { t: "Opción C" }, { t: "Opción D" }], correctaIdx: 2 },
-];
+/* ---------- Control de atención (preguntas trampa) ----------
+   Desactivado a pedido: ya no se usan trampas. La validez del examen se basa
+   en el ritmo de respuesta y en las preguntas espejo (consistencia). */
+const TRAMPAS = [];
 
 /* ---------- Preguntas espejo (índice de consistencia) ---------- */
 const ESPEJO_PREGUNTAS = [
@@ -204,10 +199,19 @@ const ESPEJO_PREGUNTAS = [
   { id: "esp1b", dim: "control", sinPorque: true, texto: "Si estoy seguro de que nadie se va a enterar, no pasa nada por romper una regla menor.", opciones: L },
   { id: "esp2a", dim: "control", sinPorque: true, texto: "Me gusta ayudar a un cliente aunque no sea exactamente mi tarea.", opciones: L },
   { id: "esp2b", dim: "control", sinPorque: true, texto: "Si algo no me corresponde, no es mi problema atenderlo.", opciones: L },
+  { id: "esp3a", dim: "control", sinPorque: true, texto: "Cuando me comprometo a algo en el trabajo, lo cumplo aunque me cueste.", opciones: L },
+  { id: "esp3b", dim: "control", sinPorque: true, texto: "A veces dejo cosas a medias si nadie las está esperando de inmediato.", opciones: L },
+  { id: "esp4a", dim: "control", sinPorque: true, texto: "Mantengo la calma cuando hay mucha presión o varias cosas al mismo tiempo.", opciones: L },
+  { id: "esp4b", dim: "control", sinPorque: true, texto: "Cuando se acumula el trabajo, me frustro y me cuesta concentrarme.", opciones: L },
+  { id: "esp5a", dim: "control", sinPorque: true, texto: "Prefiero apoyar a mi equipo aunque eso me dé más trabajo.", opciones: L },
+  { id: "esp5b", dim: "control", sinPorque: true, texto: "Cada quien debe resolver lo suyo; no me gusta cargar con el trabajo de otros.", opciones: L },
 ];
 const ESPEJOS = [
   { a: "esp1a", b: "esp1b", inverso: true },
   { a: "esp2a", b: "esp2b", inverso: true },
+  { a: "esp3a", b: "esp3b", inverso: true },
+  { a: "esp4a", b: "esp4b", inverso: true },
+  { a: "esp5a", b: "esp5b", inverso: true },
 ];
 
 /* =====================================================================
