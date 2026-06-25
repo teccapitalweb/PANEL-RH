@@ -94,20 +94,29 @@ function cargar() {
     if (!arr.length && !window.Store.on) { arr = SEED().map(function (a) { return Object.assign({}, a); }); demo = true; }
     if (!window.Store.on) {
       var evals = window.Store.evalsLocal();
-      arr.forEach(function (a) { if (evals[a.id]) { a.decision = evals[a.id].decision || ""; a.notas = evals[a.id].notas || ""; } });
+      arr.forEach(function (a) { var e = evals[a.id]; if (e) { if (e.estado) a.estado = e.estado; else if (e.decision) a.decision = e.decision; a.notas = e.notas || ""; } });
     }
     return { arr: arr, demo: demo };
   });
 }
-function guardarEval(id, decision, notas) { window.Store.guardarEval(id, { decision: decision, notas: notas }).catch(function () {}); }
+function guardarEval(id, estado, notas) { window.Store.guardarEval(id, { estado: estado, notas: notas }).catch(function () {}); }
 function configActual() {
   let c = null; try { c = JSON.parse(localStorage.getItem("examenrh_config") || "null"); } catch (e) {}
   return { titulo: (c && c.mensajeFinTitulo) || CONFIG.mensajeFinTitulo, cuerpo: (c && c.mensajeFinCuerpo) || CONFIG.mensajeFinCuerpo };
 }
 
 /* ---------- Estado ---------- */
-const state = { aspirantes: [], demo: false, busqueda: "", puesto: "Todos", orden: "score" };
+const state = { aspirantes: [], demo: false, busqueda: "", puesto: "Todos", orden: "score", estado: "Todos", comparar: [] };
 const DEC = { contratar: { t: "Contratar", cls: "ok" }, revision: { t: "En revisión", cls: "warn" }, descartar: { t: "Descartar", cls: "bad" } };
+const ESTADOS = {
+  nuevo: { t: "Nuevo", cls: "muted" },
+  evaluado: { t: "Evaluado", cls: "info" },
+  entrevista: { t: "Entrevista", cls: "warn" },
+  contratado: { t: "Contratado", cls: "ok" },
+  descartado: { t: "Descartado", cls: "bad" },
+};
+const ORDEN_ESTADOS = ["nuevo", "evaluado", "entrevista", "contratado", "descartado"];
+function estadoDe(a) { return a.estado || ({ contratar: "contratado", descartar: "descartado", revision: "evaluado" }[a.decision]) || "nuevo"; }
 
 function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); requestAnimationFrame(() => t.classList.add("is-on")); setTimeout(() => { t.classList.remove("is-on"); setTimeout(() => t.remove(), 300); }, 2400); }
 
@@ -125,6 +134,7 @@ function _renderAppUI() {
       <p>Resultados de la evaluación de ingreso. Toca un aspirante para ver su detalle.</p>
       ${state.demo ? `<div class="demo-note"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Datos de ejemplo · cuando conectes el kiosko aparecerán aquí los aspirantes reales</div>` : ""}
     </div>
+    <div class="pipeline" id="pipeline"></div>
     <div class="toolbar">
       <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input class="input" id="q" placeholder="Buscar por nombre…" value="${state.busqueda}"></div>
       <div class="sel"><select id="fPuesto">${puestos.map(p => `<option ${p === state.puesto ? "selected" : ""}>${p}</option>`).join("")}</select><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
@@ -133,18 +143,43 @@ function _renderAppUI() {
         <option value="fecha" ${state.orden === "fecha" ? "selected" : ""}>Más recientes</option>
         <option value="nombre" ${state.orden === "nombre" ? "selected" : ""}>Nombre (A-Z)</option>
       </select><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+      <button class="btn btn--sm btn--primary" id="cmpBtn" disabled>Comparar</button>
       <span class="tb-count" id="cnt"></span>
     </div>
     <div class="card"><div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Aspirante</th><th>Puesto</th><th>Fecha</th><th>Puntaje</th><th>Señales</th></tr></thead>
+      <thead><tr><th class="col-chk"></th><th>#</th><th>Aspirante</th><th>Puesto</th><th>Fecha</th><th>Puntaje</th><th>Estado · señales</th></tr></thead>
       <tbody id="filas"></tbody></table></div></div>`;
   $("#q").addEventListener("input", e => { state.busqueda = e.target.value; pintarFilas(); });
   $("#fPuesto").addEventListener("change", e => { state.puesto = e.target.value; pintarFilas(); });
   $("#fOrden").addEventListener("change", e => { state.orden = e.target.value; pintarFilas(); });
+  $("#cmpBtn").addEventListener("click", () => abrirComparador(state.comparar.slice()));
+  renderPipeline();
   pintarFilas();
 }
+function renderPipeline() {
+  const cont = $("#pipeline"); if (!cont) return;
+  const counts = {}; ORDEN_ESTADOS.forEach(k => counts[k] = 0);
+  state.aspirantes.forEach(a => { counts[estadoDe(a)]++; });
+  const chips = [`<button class="pipe-chip ${state.estado === "Todos" ? "is-on" : ""}" data-e="Todos">Todos <span class="pipe-n">${state.aspirantes.length}</span></button>`]
+    .concat(ORDEN_ESTADOS.map(k => `<button class="pipe-chip pipe-chip--${ESTADOS[k].cls} ${state.estado === k ? "is-on" : ""}" data-e="${k}">${ESTADOS[k].t} <span class="pipe-n">${counts[k]}</span></button>`));
+  cont.innerHTML = chips.join("");
+  $$("#pipeline .pipe-chip").forEach(c => c.addEventListener("click", () => { state.estado = c.dataset.e; renderPipeline(); pintarFilas(); }));
+}
+function actualizarCmpBtn() {
+  const btn = $("#cmpBtn"); if (!btn) return;
+  const n = state.comparar.length; btn.disabled = n < 2;
+  btn.textContent = n >= 2 ? `Comparar (${n})` : "Comparar";
+}
+function toggleComparar(id, on) {
+  const i = state.comparar.indexOf(id);
+  if (on && i < 0) {
+    if (state.comparar.length >= 3) { const chk = $(`#filas .cmp-chk[data-id="${id}"]`); if (chk) chk.checked = false; toast("Puedes comparar hasta 3 a la vez."); return; }
+    state.comparar.push(id);
+  } else if (!on && i >= 0) state.comparar.splice(i, 1);
+  actualizarCmpBtn();
+}
 function listaFiltrada() {
-  let arr = state.aspirantes.filter(a => (state.puesto === "Todos" || a.datos.puesto === state.puesto) && a.datos.nombre.toLowerCase().includes(state.busqueda.toLowerCase()));
+  let arr = state.aspirantes.filter(a => (state.puesto === "Todos" || a.datos.puesto === state.puesto) && (state.estado === "Todos" || estadoDe(a) === state.estado) && a.datos.nombre.toLowerCase().includes(state.busqueda.toLowerCase()));
   if (state.orden === "score") arr.sort((a, b) => b.resultado.global - a.resultado.global);
   else if (state.orden === "fecha") arr.sort((a, b) => a.fecha < b.fecha ? 1 : -1);
   else arr.sort((a, b) => a.datos.nombre.localeCompare(b.datos.nombre));
@@ -154,19 +189,70 @@ function pintarFilas() {
   const arr = listaFiltrada();
   $("#cnt").textContent = `${arr.length} aspirante${arr.length === 1 ? "" : "s"}`;
   $("#filas").innerHTML = arr.length ? arr.map((a, i) => {
-    const g = a.resultado.global; const cls = clsDePct(g);
-    const dec = a.decision ? `<span class="badge badge--${DEC[a.decision].cls}">${DEC[a.decision].t}</span>` : "";
+    const g = a.resultado.global; const cls = clsDePct(g); const est = estadoDe(a); const cf = a.resultado;
+    const estBadge = `<span class="badge badge--${ESTADOS[est].cls}">${ESTADOS[est].t}</span>`;
     const flags = a.resultado.banderas.length ? `<span class="flag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>${a.resultado.banderas.length}</span>` : "";
+    const confAl = ((cf.calidad && cf.calidad.bandera) || (cf.control && cf.control.bandera) || (cf.consistencia && cf.consistencia.bandera)) ? `<span class="flag flag--conf" title="Revisar confiabilidad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></span>` : "";
+    const checked = state.comparar.includes(a.id) ? "checked" : "";
     return `<tr data-id="${a.id}">
+      <td class="col-chk"><input type="checkbox" class="cmp-chk" data-id="${a.id}" ${checked} aria-label="Comparar"></td>
       <td>${state.orden === "score" ? `<span class="rank">${i + 1}</span>` : ""}</td>
       <td><div class="cell-name">${a.datos.nombre}</div><div class="cell-sub">${a.datos.escolaridad || ""}</div></td>
       <td>${a.datos.puesto}</td>
       <td>${fechaLarga(a.fecha)}</td>
       <td><span class="score-chip"><span class="dot dot--${cls}"></span><span class="score-num">${pct100(g)}</span></span></td>
-      <td>${flags} ${dec}</td>
+      <td><div class="cell-flags">${estBadge}${flags}${confAl}</div></td>
     </tr>`;
-  }).join("") : `<tr><td colspan="6" class="muted-empty">No hay aspirantes con ese filtro.</td></tr>`;
-  $$("#filas tr[data-id]").forEach(tr => tr.addEventListener("click", () => abrirDetalle(tr.dataset.id)));
+  }).join("") : `<tr><td colspan="7" class="muted-empty">No hay aspirantes con ese filtro.</td></tr>`;
+  $$("#filas tr[data-id]").forEach(tr => tr.addEventListener("click", e => { if (e.target.closest(".col-chk")) return; abrirDetalle(tr.dataset.id); }));
+  $$("#filas .cmp-chk").forEach(chk => chk.addEventListener("click", e => { e.stopPropagation(); toggleComparar(chk.dataset.id, chk.checked); }));
+  actualizarCmpBtn();
+}
+
+/* ---------- Comparador de finalistas ---------- */
+function abrirComparador(ids) {
+  const sel = ids.map(id => state.aspirantes.find(a => a.id === id)).filter(Boolean);
+  if (sel.length < 2) return;
+  const idxMax = arr => { const nums = arr.filter(v => typeof v === "number" && v >= 0); if (nums.length < 2) return -1; const mx = Math.max(...nums); return arr.filter(v => v === mx).length > 1 ? -1 : arr.indexOf(mx); };
+  const idxMin = arr => { if (arr.length < 2) return -1; const mn = Math.min(...arr); return arr.filter(v => v === mn).length > 1 ? -1 : arr.indexOf(mn); };
+  const fila = (label, valores, fmt, mejorIdx) => `<tr><th>${label}</th>${valores.map((v, i) => `<td class="${mejorIdx === i ? "cmp-best" : ""}">${fmt ? fmt(v) : (v == null ? "—" : v)}</td>`).join("")}</tr>`;
+
+  const dimKeys = Object.keys(DIMENSIONES).filter(d => sel.some(a => a.resultado.porDim[d]));
+  const gVals = sel.map(a => pct100(a.resultado.global));
+  const ajVals = sel.map(a => a.resultado.puesto ? pct100(a.resultado.puesto.pct) : null);
+  const dimRows = dimKeys.map(d => {
+    const vals = sel.map(a => a.resultado.porDim[d] ? pct100(a.resultado.porDim[d].pct) : null);
+    return fila(DIMENSIONES[d], vals, v => v == null ? "—" : `${v}%`, idxMax(vals.map(v => v == null ? -1 : v)));
+  }).join("");
+  const banVals = sel.map(a => a.resultado.banderas.length);
+  const confVals = sel.map(a => { const cf = a.resultado; return ((cf.calidad && cf.calidad.bandera) || (cf.control && cf.control.bandera) || (cf.consistencia && cf.consistencia.bandera)) ? "Revisar" : "OK"; });
+  const reacVals = sel.map(a => (a.atencion && a.atencion.avgMs) || null);
+  const estVals = sel.map(a => `<span class="badge badge--${ESTADOS[estadoDe(a)].cls}">${ESTADOS[estadoDe(a)].t}</span>`);
+  const cols = sel.length + 1;
+
+  const ov = document.createElement("div"); ov.className = "modal-overlay";
+  ov.innerHTML = `<div class="modal modal--cmp" role="dialog" aria-modal="true">
+    <div class="resumen-head"><h3>Comparar finalistas</h3><button class="icon-btn" id="cmpClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <div class="cmp-wrap"><table class="cmp-table">
+      <thead><tr><th></th>${sel.map(a => `<th><div class="cmp-name">${a.datos.nombre}</div><div class="cmp-role">${a.datos.puesto}</div></th>`).join("")}</tr></thead>
+      <tbody>
+        ${fila("Puntaje global", gVals, v => `${v}`, idxMax(gVals))}
+        ${ajVals.some(v => v != null) ? fila("Ajuste al puesto", ajVals, v => v == null ? "—" : `${v}%`, idxMax(ajVals.map(v => v == null ? -1 : v))) : ""}
+        <tr class="cmp-div"><th colspan="${cols}">Por dimensión</th></tr>
+        ${dimRows}
+        <tr class="cmp-div"><th colspan="${cols}">Señales y estado</th></tr>
+        ${fila("Banderas críticas", banVals, v => `${v}`, idxMin(banVals))}
+        ${fila("Confiabilidad", confVals, null, -1)}
+        ${fila("Reacción", reacVals, v => v == null ? "—" : `${v} ms`, -1)}
+        ${fila("Estado", estVals, null, -1)}
+      </tbody>
+    </table></div>
+    <div class="cmp-foot">El mejor de cada fila va resaltado. Comparas ${sel.length} de un máximo de 3.</div>
+  </div>`;
+  document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#cmpClose", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
 }
 
 /* ---------- Detalle ---------- */
@@ -211,10 +297,12 @@ function generarResumen(a) {
   if (r.control && r.control.bandera) alertasConf.push("falló el control de atención");
   if (r.consistencia && r.consistencia.bandera) alertasConf.push("respuestas inconsistentes");
   if (alertasConf.length) S.push(`Confiabilidad: el patrón de respuesta muestra ${alertasConf.join(", ")}; conviene tomar el puntaje con cautela.`);
-  if (a.decision === "contratar") S.push("RH marcó este perfil como candidato a contratar.");
-  else if (a.decision === "descartar") S.push("RH marcó este perfil para descartar.");
-  else if (a.decision === "revision") S.push("RH dejó este perfil en revisión.");
-  else S.push("Se recomienda validar en entrevista las áreas señaladas antes de tomar una decisión.");
+  const estR = estadoDe(a);
+  if (estR === "contratado") S.push("RH marcó este perfil como contratado.");
+  else if (estR === "descartado") S.push("RH descartó este perfil.");
+  else if (estR === "entrevista") S.push("Este perfil está en etapa de entrevista.");
+  else if (estR === "evaluado") S.push("Este perfil ya fue evaluado y está pendiente de avanzar.");
+  else S.push("Se recomienda validar en entrevista las áreas señaladas antes de avanzarlo en el proceso.");
 
   const preguntas = [], usados = {};
   const add = q => { if (q && !usados[q]) { usados[q] = 1; preguntas.push(q); } };
@@ -235,7 +323,7 @@ function pedirResumenIA(a) {
     ajustePuesto: r.puesto ? pct100(r.puesto.pct) : null,
     dimensiones: Object.keys(DIMENSIONES).filter(d => d !== "puesto" && r.porDim[d]).map(d => ({ nombre: DIMENSIONES[d], pct: pct100(r.porDim[d].pct), nivel: r.porDim[d].nivel })),
     banderas: (r.banderas || []).map(d => DIMENSIONES[d]),
-    decision: a.decision ? DEC[a.decision].t : null,
+    estado: ESTADOS[estadoDe(a)].t,
   };
   return fetch(window.AI_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
     .then(res => { if (!res.ok) throw new Error("endpoint"); return res.json(); })
@@ -287,9 +375,9 @@ function exportarReportePDF(a) {
   const ajuste = a.resultado.puesto
     ? `<div class="pr-score__box"><div class="pr-score__lbl">Ajuste al puesto</div><div class="pr-score__val pr-${clsDePct(a.resultado.puesto.pct)}">${pct100(a.resultado.puesto.pct)}<span>%</span></div><div class="pr-score__nv">${a.resultado.puesto.nivel}</div></div>`
     : "";
-  const dec = a.decision
-    ? `<span class="pr-dec pr-dec--${DEC[a.decision].cls}">${DEC[a.decision].t}</span>`
-    : `<span class="pr-dec pr-dec--none">Sin decisión registrada</span>`;
+  const estPdf = estadoDe(a);
+  const prCls = { nuevo: "none", evaluado: "none", entrevista: "warn", contratado: "ok", descartado: "bad" }[estPdf] || "none";
+  const dec = `<span class="pr-dec pr-dec--${prCls}">${ESTADOS[estPdf].t}</span>`;
   const at = a.atencion || {};
   const cf = a.resultado;
   const confLineas = [];
@@ -329,7 +417,7 @@ function exportarReportePDF(a) {
       <div class="pr-row"><span>Reacción promedio</span><span>${at.avgMs || "—"} ms</span></div>
     </div>
 
-    <div class="pr-sec">Decisión de Recursos Humanos</div>
+    <div class="pr-sec">Estado en el proceso</div>
     <div class="pr-decline">${dec}</div>
     ${a.notas ? `<div class="pr-notas"><b>Notas:</b> ${a.notas}</div>` : ""}
 
@@ -436,9 +524,9 @@ function abrirDetalle(id) {
 
       ${bloquePuesto ? `<div class="sec-title">Preguntas del puesto · ${a.datos.puesto}</div>${a.resultado.puesto ? `<div class="dimrow"><div class="dimrow__top"><span class="dimrow__name">Ajuste al puesto</span><span class="badge badge--${clsDePct(a.resultado.puesto.pct)}">${a.resultado.puesto.nivel} · ${pct100(a.resultado.puesto.pct)}%</span></div><div class="dimbar"><div class="dimfill dimfill--${clsDePct(a.resultado.puesto.pct)}" style="width:${pct100(a.resultado.puesto.pct)}%"></div></div></div>` : ""}${bloquePuesto}` : ""}
 
-      <div class="sec-title">Decisión</div>
-      <div class="dec-grid">
-        ${Object.keys(DEC).map(k => `<button class="dec-btn ${a.decision === k ? "is-on" : ""}" data-d="${k}">${DEC[k].t}</button>`).join("")}
+      <div class="sec-title">Estado en el proceso</div>
+      <div class="dec-grid dec-grid--estados">
+        ${ORDEN_ESTADOS.map(k => `<button class="dec-btn dec-btn--${ESTADOS[k].cls} ${estadoDe(a) === k ? "is-on" : ""}" data-d="${k}">${ESTADOS[k].t}</button>`).join("")}
       </div>
       <div class="field" style="margin-top:12px"><label class="field__label">Notas de RH</label><textarea class="input" id="drNotas" rows="3" placeholder="Observaciones…">${a.notas || ""}</textarea></div>
     </div>`;
@@ -451,11 +539,11 @@ function abrirDetalle(id) {
   $("#drPDF").addEventListener("click", () => exportarReportePDF(a));
   $("#drawerOverlay").addEventListener("click", cerrar);
   $$("#drawer .dec-btn").forEach(b => b.addEventListener("click", () => {
-    const k = b.dataset.d; a.decision = a.decision === k ? "" : k;
-    $$("#drawer .dec-btn").forEach(x => x.classList.toggle("is-on", x.dataset.d === a.decision));
-    guardarEval(a.id, a.decision, a.notas); pintarFilas();
+    const k = b.dataset.d; a.estado = k;
+    $$("#drawer .dec-btn").forEach(x => x.classList.toggle("is-on", x.dataset.d === k));
+    guardarEval(a.id, a.estado, a.notas); pintarFilas(); if (typeof renderPipeline === "function") renderPipeline();
   }));
-  $("#drNotas").addEventListener("input", e => { a.notas = e.target.value; guardarEval(a.id, a.decision, a.notas); });
+  $("#drNotas").addEventListener("input", e => { a.notas = e.target.value; guardarEval(a.id, estadoDe(a), a.notas); });
 }
 
 /* ---------- Configuración (texto del popup) ---------- */

@@ -267,3 +267,47 @@ tbody tr:last-child td { border-bottom: none; }
 .resumen-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 .resumen-src { font-size: .76rem; color: var(--faint); }
 .resumen-actions { display: flex; gap: 8px; }
+
+/* ---------- Estados / pipeline ---------- */
+.badge--muted { color: var(--muted); background: color-mix(in srgb, var(--muted) 12%, transparent); border-color: color-mix(in srgb, var(--muted) 24%, transparent); }
+.badge--info { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 26%, transparent); }
+.flag--conf { color: var(--warn); background: color-mix(in srgb, var(--warn) 13%, transparent); }
+.cell-flags { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+
+.pipeline { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.pipe-chip { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 99px; border: 1.5px solid var(--border); background: var(--surface); color: var(--muted); font-family: var(--font-display); font-weight: 600; font-size: .82rem; cursor: pointer; transition: all .14s; }
+.pipe-chip:hover { border-color: var(--accent); color: var(--text); }
+.pipe-chip.is-on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--text); }
+.pipe-n { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: color-mix(in srgb, var(--muted) 16%, transparent); color: var(--text); font-size: .74rem; }
+.pipe-chip--info.is-on { border-color: var(--accent); }
+.pipe-chip--warn.is-on { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.pipe-chip--ok.is-on { border-color: var(--good); background: color-mix(in srgb, var(--good) 12%, transparent); }
+.pipe-chip--bad.is-on { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+
+/* Botones de estado en el detalle */
+.dec-grid--estados { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
+.dec-btn--info.is-on { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: var(--accent); color: var(--accent); }
+.dec-btn--warn.is-on { background: color-mix(in srgb, var(--warn) 14%, transparent); border-color: var(--warn); color: var(--warn); }
+.dec-btn--ok.is-on { background: color-mix(in srgb, var(--good) 14%, transparent); border-color: var(--good); color: var(--good); }
+.dec-btn--bad.is-on { background: color-mix(in srgb, var(--bad) 14%, transparent); border-color: var(--bad); color: var(--bad); }
+.dec-btn--muted.is-on { background: color-mix(in srgb, var(--muted) 14%, transparent); border-color: var(--muted); color: var(--text); }
+
+/* ---------- Columna de selección (comparar) ---------- */
+.col-chk { width: 38px; text-align: center; }
+.cmp-chk { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; border: 1.6px solid var(--border); border-radius: 5px; background: transparent; cursor: pointer; position: relative; vertical-align: middle; transition: all .14s; }
+.cmp-chk:hover { border-color: var(--accent); }
+.cmp-chk:checked { background: var(--accent); border-color: var(--accent); }
+.cmp-chk:checked::after { content: ""; position: absolute; left: 5px; top: 1px; width: 4px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+/* ---------- Modal comparador ---------- */
+.modal--cmp { max-width: 720px; width: 100%; text-align: left; }
+.cmp-wrap { max-height: 60vh; overflow: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: var(--r-md); }
+.cmp-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.cmp-table th, .cmp-table td { padding: 9px 12px; text-align: center; border-bottom: 1px solid var(--border); }
+.cmp-table thead th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.cmp-table tbody th { text-align: left; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.cmp-name { font-family: var(--font-display); font-weight: 700; color: var(--text); }
+.cmp-role { font-size: .76rem; color: var(--muted); font-weight: 500; }
+.cmp-best { background: color-mix(in srgb, var(--good) 14%, transparent); font-weight: 700; color: var(--good); border-radius: 6px; }
+.cmp-div th { background: color-mix(in srgb, var(--muted) 8%, transparent); text-transform: uppercase; letter-spacing: .05em; font-size: .72rem; color: var(--muted); text-align: left; }
+.cmp-foot { margin-top: 12px; font-size: .78rem; color: var(--faint); }

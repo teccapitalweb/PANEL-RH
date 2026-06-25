@@ -218,12 +218,44 @@ function ordenOpciones(q) {
   q.opciones.forEach((o, i) => { (o.otro ? otros : normales).push(i); });
   return barajar(normales).concat(otros); // baraja distractores, "Otro" siempre al final
 }
+function ordenarExtras() {
+  // Coloca trampas y espejos de modo que los pares espejo queden SEPARADOS:
+  // primero los "a" de cada par (intercalados con trampas), luego los "b".
+  const espP = (typeof ESPEJO_PREGUNTAS !== "undefined" ? ESPEJO_PREGUNTAS : []);
+  const pares = (typeof ESPEJOS !== "undefined" ? ESPEJOS : []);
+  const byId = {}; espP.forEach(q => { byId[q.id] = q; });
+  const aMembers = pares.map(p => byId[p.a]).filter(Boolean);
+  const bMembers = pares.map(p => byId[p.b]).filter(Boolean);
+  const traps = (typeof TRAMPAS !== "undefined" ? TRAMPAS : []).slice();
+  const head = [];
+  const n = Math.max(aMembers.length, traps.length);
+  for (let i = 0; i < n; i++) { if (aMembers[i]) head.push(aMembers[i]); if (traps[i]) head.push(traps[i]); }
+  return head.concat(bMembers);
+}
+function intercalar(cuerpo, extras) {
+  const out = cuerpo.slice();
+  if (!extras.length) return out;
+  const total = out.length + extras.length;
+  const paso = total / (extras.length + 1);
+  extras.forEach((q, k) => {
+    let at = Math.round(paso * (k + 1));
+    at = Math.max(1, Math.min(out.length, at));
+    out.splice(at, 0, q);
+  });
+  return out;
+}
 function construirExamen(puesto) {
   const rol = (typeof PREGUNTAS_PUESTO !== "undefined" && PREGUNTAS_PUESTO[puesto]) || [];
-  const extra = (typeof TRAMPAS !== "undefined" ? TRAMPAS : []).concat(typeof ESPEJO_PREGUNTAS !== "undefined" ? ESPEJO_PREGUNTAS : []);
-  const base = PREGUNTAS.concat(rol, extra);
-  const copia = base.map(q => { const nq = Object.assign({}, q); if (nq.opciones) nq.__ord = ordenOpciones(nq); return nq; });
-  return barajar(copia);
+  // 1) Las "Sobre ti" iniciales se quedan al principio, sin interrumpir (conocer al aspirante primero).
+  let i = 0; while (i < PREGUNTAS.length && PREGUNTAS[i].dim === "perfil") i++;
+  const intro = PREGUNTAS.slice(0, i);
+  const cuerpo = PREGUNTAS.slice(i);
+  // 2) Trampas y espejos se intercalan dentro del cuerpo (no al final, pares separados).
+  const cuerpoX = intercalar(cuerpo, ordenarExtras());
+  // 3) Orden final: Sobre ti → resto del banco (en su orden) → preguntas del puesto.
+  const orden = intro.concat(cuerpoX, rol);
+  // 4) Solo se barajan las OPCIONES dentro de cada pregunta (anti-copia), no el orden.
+  return orden.map(q => { const nq = Object.assign({}, q); if (nq.opciones) nq.__ord = ordenOpciones(nq); return nq; });
 }
 
 function renderPregunta() {
