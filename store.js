@@ -50,6 +50,24 @@
     },
 
     evalsLocal: function () { return lsGet("examenrh_eval", {}); },
+
+    crearInvitacion: function (inv) {
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("invitaciones").doc(inv.token).set(inv).then(function () { return inv; });
+      var m = lsGet("examenrh_invitaciones", {}); m[inv.token] = inv; lsSet("examenrh_invitaciones", m); return Promise.resolve(inv);
+    },
+    leerInvitacion: function (token) {
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("invitaciones").doc(token).get().then(function (s) { return s.exists ? s.data() : null; });
+      var m = lsGet("examenrh_invitaciones", {}); return Promise.resolve(m[token] || null);
+    },
+    leerInvitaciones: function () {
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("invitaciones").orderBy("fecha", "desc").get().then(function (s) { return s.docs.map(function (d) { return d.data(); }); });
+      var m = lsGet("examenrh_invitaciones", {}); return Promise.resolve(Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return a.fecha < b.fecha ? 1 : -1; }));
+    },
+    completarInvitacion: function (token, aspiranteId) {
+      var patch = { estado: "completada", aspiranteId: aspiranteId, fechaCompletada: new Date().toISOString() };
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("invitaciones").doc(token).set(patch, { merge: true });
+      var m = lsGet("examenrh_invitaciones", {}); if (m[token]) { Object.assign(m[token], patch); lsSet("examenrh_invitaciones", m); } return Promise.resolve();
+    },
     login: function (email, pass) { if (on()) return window.auth.signInWithEmailAndPassword(email, pass); return Promise.reject(new Error("demo")); },
     logout: function () { if (on() && window.auth) return window.auth.signOut(); return Promise.resolve(); },
   };

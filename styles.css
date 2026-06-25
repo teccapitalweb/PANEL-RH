@@ -103,6 +103,7 @@ button { font-family: inherit; cursor: pointer; }
 .welcome__mark--soft { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
 .welcome__mark svg { width: 38px; height: 38px; }
 .welcome__title { font-size: clamp(1.7rem, 5vw, 2.4rem); line-height: 1.05; margin-bottom: 12px; }
+.welcome__badge { display: inline-block; margin-bottom: 16px; padding: 5px 14px; border-radius: 99px; border: 1px solid var(--border); background: var(--glass); color: var(--accent); font-family: var(--font-display); font-weight: 600; font-size: .76rem; letter-spacing: .04em; text-transform: uppercase; }
 .welcome__sub { color: var(--muted); font-size: 1.02rem; line-height: 1.6; margin-bottom: 26px; }
 .welcome__foot { margin-top: 26px; font-size: .8rem; color: var(--faint); letter-spacing: .03em; }
 .tips { list-style: none; text-align: left; margin-bottom: 26px; display: flex; flex-direction: column; gap: 12px; }

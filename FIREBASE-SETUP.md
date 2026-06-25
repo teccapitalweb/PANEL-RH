@@ -40,3 +40,16 @@ Sube los archivos como siempre. Listo.
 ## Estructura en Firestore
     empresas/{EMPRESA_ID}/aspirantes/{id}     ← registros del examen
     empresas/{EMPRESA_ID}/config/evaluacion   ← mensaje final + puestos
+
+## Invitaciones por enlace (nuevo)
+Cuando RH genera un enlace único para un aspirante, se guarda en:
+
+    empresas/{EMPRESA_ID}/invitaciones/{token}
+
+Las reglas (`firestore.rules`) ya lo contemplan: el aspirante **lee** su enlace y lo
+**marca como completado** (el token es un código secreto largo, así que solo quien
+tiene el enlace puede tocar ese documento); **solo RH autenticado** puede crearlas o
+borrarlas. Cada enlace es de un solo uso: al terminar el examen queda "completada".
+
+> El "guardar progreso" del examen vive solo en el navegador del aspirante
+> (localStorage), no en Firebase: sirve para que retome si cierra la pestaña.

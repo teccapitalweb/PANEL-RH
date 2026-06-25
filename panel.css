@@ -311,3 +311,19 @@ tbody tr:last-child td { border-bottom: none; }
 .cmp-best { background: color-mix(in srgb, var(--good) 14%, transparent); font-weight: 700; color: var(--good); border-radius: 6px; }
 .cmp-div th { background: color-mix(in srgb, var(--muted) 8%, transparent); text-transform: uppercase; letter-spacing: .05em; font-size: .72rem; color: var(--muted); text-align: left; }
 .cmp-foot { margin-top: 12px; font-size: .78rem; color: var(--faint); }
+
+/* ---------- Modal invitaciones ---------- */
+.modal--inv { max-width: 560px; width: 100%; text-align: left; }
+.inv-intro { font-size: .88rem; color: var(--muted); margin: 4px 0 16px; }
+.inv-form { display: grid; gap: 12px; margin-bottom: 8px; }
+.inv-form > .btn { justify-self: start; }
+.inv-result { margin: 12px 0 4px; padding: 13px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--glass); }
+.inv-link { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.inv-link .input { flex: 1; font-size: .82rem; }
+.inv-listwrap { margin-top: 18px; }
+.inv-list { display: flex; flex-direction: column; gap: 8px; max-height: 34vh; overflow-y: auto; }
+.inv-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-md); }
+.inv-row__main { flex: 1; min-width: 0; }
+.inv-row__name { font-weight: 600; color: var(--text); font-size: .9rem; }
+.inv-row__sub { font-size: .78rem; color: var(--muted); }
+.inv-empty { font-size: .85rem; color: var(--faint); padding: 8px 2px; }

@@ -144,6 +144,7 @@ function _renderAppUI() {
         <option value="nombre" ${state.orden === "nombre" ? "selected" : ""}>Nombre (A-Z)</option>
       </select><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
       <button class="btn btn--sm btn--primary" id="cmpBtn" disabled>Comparar</button>
+      <button class="btn btn--sm" id="invBtn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>Invitar</button>
       <span class="tb-count" id="cnt"></span>
     </div>
     <div class="card"><div class="table-wrap"><table>
@@ -153,6 +154,7 @@ function _renderAppUI() {
   $("#fPuesto").addEventListener("change", e => { state.puesto = e.target.value; pintarFilas(); });
   $("#fOrden").addEventListener("change", e => { state.orden = e.target.value; pintarFilas(); });
   $("#cmpBtn").addEventListener("click", () => abrirComparador(state.comparar.slice()));
+  $("#invBtn").addEventListener("click", abrirInvitaciones);
   renderPipeline();
   pintarFilas();
 }
@@ -253,6 +255,68 @@ function abrirComparador(ids) {
   const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
   $("#cmpClose", ov).addEventListener("click", close);
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
+}
+
+/* ---------- Invitaciones (enlace único por aspirante) ---------- */
+function linkBase() { return location.href.replace(/[#?].*$/, "").replace(/panel\.html$/, "index.html"); }
+function abrirInvitaciones() {
+  window.Store.leerConfig().then(function (cfg) {
+    var puestos = (cfg && Array.isArray(cfg.puestos) && cfg.puestos.length) ? cfg.puestos : PUESTOS;
+    _abrirInvitacionesUI(puestos);
+  });
+}
+function _abrirInvitacionesUI(puestos) {
+  const ov = document.createElement("div"); ov.className = "modal-overlay";
+  ov.innerHTML = `<div class="modal modal--inv" role="dialog" aria-modal="true">
+    <div class="resumen-head"><h3>Invitar a un aspirante</h3><button class="icon-btn" id="invClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <p class="inv-intro">Genera un enlace único para que conteste desde su casa. Cada enlace es de un solo uso.</p>
+    <div class="inv-form">
+      <div class="field"><label class="field__label">Nombre (opcional)</label><input class="input" id="invNombre" placeholder="Nombre del aspirante"></div>
+      <div class="field"><label class="field__label">Puesto (opcional)</label><div class="sel"><select id="invPuesto"><option value="">Sin especificar</option>${puestos.map(p => `<option>${p}</option>`).join("")}</select><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <button class="btn btn--primary" id="invGen">Generar enlace</button>
+    </div>
+    <div class="inv-result" id="invResult" hidden>
+      <label class="field__label">Enlace generado</label>
+      <div class="inv-link"><input class="input" id="invLink" readonly><button class="btn btn--sm btn--primary" id="invCopy">Copiar</button></div>
+    </div>
+    <div class="inv-listwrap"><div class="sec-title">Invitaciones</div><div id="invList" class="inv-list"><p class="inv-empty">Cargando…</p></div></div>
+  </div>`;
+  document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("#invClose", ov).addEventListener("click", close);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+
+  const copiar = (txt) => {
+    const done = () => toast("Enlace copiado.");
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done).catch(done);
+    else { try { const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); done(); } catch (e) {} }
+  };
+  const pintarLista = () => {
+    window.Store.leerInvitaciones().then(function (arr) {
+      const cont = $("#invList", ov);
+      if (!arr.length) { cont.innerHTML = `<p class="inv-empty">Aún no hay invitaciones.</p>`; return; }
+      cont.innerHTML = arr.map(function (iv) {
+        const usada = iv.estado === "completada"; const link = linkBase() + "?inv=" + iv.token;
+        return `<div class="inv-row">
+          <div class="inv-row__main"><div class="inv-row__name">${iv.nombre || "Sin nombre"}</div><div class="inv-row__sub">${iv.puesto || "Sin puesto"} · ${fechaLarga(iv.fecha)}</div></div>
+          <span class="badge badge--${usada ? "ok" : "info"}">${usada ? "Completada" : "Pendiente"}</span>
+          <button class="btn btn--sm inv-rowcopy" data-link="${link}" ${usada ? "disabled" : ""}>Copiar</button>
+        </div>`;
+      }).join("");
+      $$(".inv-rowcopy", ov).forEach(b => b.addEventListener("click", () => copiar(b.dataset.link)));
+    }).catch(function () { $("#invList", ov).innerHTML = `<p class="inv-empty">No se pudo cargar.</p>`; });
+  };
+  $("#invGen", ov).addEventListener("click", () => {
+    const token = "inv_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const inv = { token: token, nombre: $("#invNombre", ov).value.trim(), puesto: $("#invPuesto", ov).value, estado: "pendiente", fecha: new Date().toISOString() };
+    window.Store.crearInvitacion(inv).then(function () {
+      $("#invLink", ov).value = linkBase() + "?inv=" + token; $("#invResult", ov).hidden = false;
+      $("#invNombre", ov).value = ""; $("#invPuesto", ov).value = "";
+      pintarLista();
+    }).catch(function () { toast("No se pudo generar."); });
+  });
+  $("#invCopy", ov).addEventListener("click", () => copiar($("#invLink", ov).value));
+  pintarLista();
 }
 
 /* ---------- Detalle ---------- */

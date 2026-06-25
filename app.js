@@ -343,8 +343,8 @@ function renderAbierta(q, tag, prev) {
 }
 function avanzarPregunta() {
   const lista = state.preguntas && state.preguntas.length ? state.preguntas : PREGUNTAS;
-  if (state.qIdx < lista.length - 1) { state.qIdx++; render(); }
-  else { state.fase = "reaccion"; render(); }
+  if (state.qIdx < lista.length - 1) { state.qIdx++; } else { state.fase = "reaccion"; }
+  guardarProgreso(); render();
 }
 
 /* ---------- Prueba de atención / reacción ---------- */
@@ -464,11 +464,78 @@ function calcularConfianza(resp) {
   return { calidad, control, consistencia };
 }
 
+/* ---------- Invitación por enlace + guardar progreso ---------- */
+var PROG_KEY = "examenrh_progreso";
+var FASES_EXAMEN = ["datos", "instrucciones", "examen", "reaccion"];
+function invActual() { return window.__INV ? window.__INV.token : null; }
+function guardarProgreso() {
+  try {
+    if (FASES_EXAMEN.indexOf(state.fase) < 0) return;
+    localStorage.setItem(PROG_KEY, JSON.stringify({ ts: Date.now(), fase: state.fase, qIdx: state.qIdx, datos: state.datos, respuestas: state.respuestas, atencion: state.atencion, preguntas: state.preguntas, inv: invActual() }));
+  } catch (e) {}
+}
+function limpiarProgreso() { try { localStorage.removeItem(PROG_KEY); } catch (e) {} }
+function leerProgreso() { try { return JSON.parse(localStorage.getItem(PROG_KEY) || "null"); } catch (e) { return null; } }
+function hayProgreso(invToken) {
+  var p = leerProgreso();
+  if (!p || FASES_EXAMEN.indexOf(p.fase) < 0) return null;
+  if (Date.now() - (p.ts || 0) > 24 * 3600 * 1000) return null;
+  if ((p.inv || "") !== (invToken || "")) return null;
+  return p;
+}
+function restaurarProgreso(p) {
+  state.fase = p.fase; state.qIdx = p.qIdx || 0; state.datos = p.datos || {};
+  state.respuestas = p.respuestas || {}; state.atencion = p.atencion || null; state.preguntas = p.preguntas || null;
+}
+function parseInv() { try { return new URLSearchParams(location.search).get("inv"); } catch (e) { return null; } }
+function arrancar(invToken) {
+  var seguir = function () { var p = hayProgreso(invToken); if (p) return renderReanudar(p); render(); };
+  if (invToken) {
+    window.Store.leerInvitacion(invToken).then(function (inv) {
+      if (!inv) return seguir();
+      if (inv.estado === "completada") return renderInvUsada();
+      window.__INV = inv;
+      if (inv.nombre) state.datos.nombre = inv.nombre;
+      if (inv.puesto) state.datos.puesto = inv.puesto;
+      seguir();
+    }).catch(seguir);
+  } else seguir();
+}
+function renderReanudar(p) {
+  var ctx = (p.fase === "examen" && p.preguntas) ? `Vas en la pregunta ${(p.qIdx || 0) + 1} de ${p.preguntas.length}.` : "Dejaste un examen a medias.";
+  if (p.datos && p.datos.puesto) ctx = `Puesto: ${p.datos.puesto}. ` + ctx;
+  $("#stage").innerHTML = `
+    <div class="screen screen--center">
+      <div class="welcome">
+        <div class="welcome__badge">Examen sin terminar</div>
+        <h1 class="welcome__title">¿Continuamos donde lo dejaste?</h1>
+        <p class="welcome__sub">${ctx}</p>
+        <button class="btn btn--xl btn--primary" id="resumeGo">Continuar</button>
+        <button class="btn btn--ghost" id="resumeNew" style="margin-top:10px">Empezar de nuevo</button>
+      </div>
+    </div>`;
+  $("#resumeGo").addEventListener("click", () => { restaurarProgreso(p); render(); });
+  $("#resumeNew").addEventListener("click", () => { limpiarProgreso(); state.fase = "bienvenida"; state.qIdx = 0; state.respuestas = {}; state.atencion = null; state.preguntas = null; if (!(window.__INV && window.__INV.nombre)) state.datos = {}; render(); });
+}
+function renderInvUsada() {
+  $("#stage").innerHTML = `
+    <div class="screen screen--center">
+      <div class="welcome">
+        <div class="welcome__badge">Enlace utilizado</div>
+        <h1 class="welcome__title">Este enlace ya fue usado</h1>
+        <p class="welcome__sub">Esta invitación ya se completó. Si crees que es un error, contacta a Recursos Humanos.</p>
+      </div>
+    </div>`;
+}
+
 function guardarAspirante() {
   const resultado = calcularResultado(state.respuestas, state.atencion);
   Object.assign(resultado, calcularConfianza(state.respuestas));
-  const registro = { id: "asp" + Date.now(), fecha: new Date().toISOString(), datos: state.datos, respuestas: state.respuestas, atencion: state.atencion, resultado, consentimiento: { aceptado: true, fecha: new Date().toISOString(), version: CONFIG.avisoVersion, responsable: CONFIG.avisoResponsable } };
+  const invTok = window.__INV ? window.__INV.token : null;
+  const registro = { id: "asp" + Date.now(), fecha: new Date().toISOString(), datos: state.datos, respuestas: state.respuestas, atencion: state.atencion, resultado, consentimiento: { aceptado: true, fecha: new Date().toISOString(), version: CONFIG.avisoVersion, responsable: CONFIG.avisoResponsable }, invitacion: invTok };
   window.Store.guardarAspirante(registro).catch(function (e) { console.warn("No se pudo guardar el aspirante:", e && e.message); });
+  if (invTok) window.Store.completarInvitacion(invTok, registro.id).catch(function () {});
+  limpiarProgreso();
   return registro;
 }
 
@@ -497,6 +564,7 @@ function renderFin() {
   requestAnimationFrame(() => ov.classList.add("is-on"));
   $("#finOk", ov).addEventListener("click", () => {
     ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220);
+    limpiarProgreso(); window.__INV = null;
     state.fase = "bienvenida"; state.qIdx = 0; state.datos = {}; state.respuestas = {}; state.atencion = null; state.preguntas = null;
     render();
   });
@@ -549,5 +617,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#themeBtn").addEventListener("click", () => applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
   const _rh = $("#rhAccess"); if (_rh) _rh.addEventListener("click", function () { if (window.FIREBASE_ON) { window.location.href = "panel.html"; } else { abrirAccesoRH(); } });
   document.addEventListener("click", () => $$(".datepick").forEach(d => d.classList.remove("is-open")));
-  render();
+  window.addEventListener("beforeunload", guardarProgreso);
+  arrancar(parseInv());
 });
