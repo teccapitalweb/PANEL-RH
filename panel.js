@@ -162,6 +162,7 @@ function _renderAppUI() {
       <p>Resultados de la evaluación de ingreso. Toca un aspirante para ver su detalle.</p>
       ${state.demo ? `<div class="demo-note"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Datos de ejemplo · cuando conectes el kiosko aparecerán aquí los aspirantes reales</div>` : ""}
     </div>
+    <div class="dash" id="dash"></div>
     <div class="pipeline" id="pipeline"></div>
     <div class="toolbar">
       <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input class="input" id="q" placeholder="Buscar por nombre…" value="${state.busqueda}"></div>
@@ -183,8 +184,31 @@ function _renderAppUI() {
   $("#fOrden").addEventListener("change", e => { state.orden = e.target.value; pintarFilas(); });
   $("#cmpBtn").addEventListener("click", () => abrirComparador(state.comparar.slice()));
   $("#invBtn").addEventListener("click", abrirInvitaciones);
+  renderDashboard();
   renderPipeline();
   pintarFilas();
+}
+function renderDashboard() {
+  const cont = $("#dash"); if (!cont) return;
+  const arr = state.aspirantes;
+  const total = arr.length;
+  const conR = arr.filter(a => a.resultado);
+  const prom = conR.length ? Math.round(conR.reduce((s, a) => s + a.resultado.global, 0) / conR.length * 100) : 0;
+  const conB = arr.filter(a => a.resultado && a.resultado.banderas && a.resultado.banderas.length).length;
+  const aRev = arr.filter(a => { const cf = a.resultado || {}; return (cf.calidad && cf.calidad.bandera) || (cf.control && cf.control.bandera) || (cf.consistencia && cf.consistencia.bandera); }).length;
+  const contr = arr.filter(a => estadoDe(a) === "contratado").length;
+  const counts = {}; ORDEN_ESTADOS.forEach(k => counts[k] = 0); arr.forEach(a => counts[estadoDe(a)]++);
+  const card = (num, lbl, cls) => `<div class="dash-card"><div class="dash-num ${cls || ""}">${num}</div><div class="dash-lbl">${lbl}</div></div>`;
+  const seg = ORDEN_ESTADOS.filter(k => counts[k]).map(k => `<div class="dash-seg dash-seg--${ESTADOS[k].cls}" style="width:${(counts[k] / total * 100).toFixed(1)}%" title="${ESTADOS[k].t}: ${counts[k]}"></div>`).join("");
+  cont.innerHTML = `
+    <div class="dash-cards">
+      ${card(total, "Aspirantes")}
+      ${card(total ? prom + "%" : "—", "Promedio global", "dash-num--" + clsDePct(prom / 100))}
+      ${card(conB, "Con banderas", conB ? "dash-num--bad" : "")}
+      ${card(aRev, "A revisar", aRev ? "dash-num--warn" : "")}
+      ${card(contr, "Contratados", contr ? "dash-num--ok" : "")}
+    </div>
+    ${total ? `<div class="dash-bar">${seg}</div>` : ""}`;
 }
 function renderPipeline() {
   const cont = $("#pipeline"); if (!cont) return;
@@ -658,7 +682,7 @@ function abrirDetalle(id) {
   $$("#drawer .dec-btn").forEach(b => b.addEventListener("click", () => {
     const k = b.dataset.d; a.estado = k;
     $$("#drawer .dec-btn").forEach(x => x.classList.toggle("is-on", x.dataset.d === k));
-    guardarEval(a.id, a.estado, a.notas); pintarFilas(); if (typeof renderPipeline === "function") renderPipeline();
+    guardarEval(a.id, a.estado, a.notas); pintarFilas(); if (typeof renderPipeline === "function") renderPipeline(); if (typeof renderDashboard === "function") renderDashboard();
   }));
   $("#drNotas").addEventListener("input", e => { a.notas = e.target.value; guardarEval(a.id, estadoDe(a), a.notas); });
 }

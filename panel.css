@@ -384,3 +384,21 @@ tbody tr:last-child td { border-bottom: none; }
 .marca-hex { font-family: var(--font-mono); font-size: .84rem; color: var(--muted); text-transform: uppercase; }
 .marca-logo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .marca-prev { height: 42px; max-width: 150px; object-fit: contain; border: 1px solid var(--border); border-radius: 9px; padding: 5px; background: var(--surface); }
+
+/* ---------- Dashboard de métricas ---------- */
+.dash { margin-bottom: 18px; }
+.dash-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.dash-card { padding: 13px 16px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--glass); }
+.dash-num { font-family: var(--font-display); font-weight: 700; font-size: 1.55rem; line-height: 1; color: var(--text); }
+.dash-num--ok { color: var(--good); }
+.dash-num--warn { color: var(--warn); }
+.dash-num--bad { color: var(--bad); }
+.dash-lbl { font-size: .77rem; color: var(--muted); margin-top: 6px; }
+.dash-bar { display: flex; height: 9px; border-radius: 99px; overflow: hidden; background: color-mix(in srgb, var(--muted) 14%, transparent); }
+.dash-seg { height: 100%; }
+.dash-seg + .dash-seg { box-shadow: -1px 0 0 var(--surface); }
+.dash-seg--muted { background: var(--muted); }
+.dash-seg--info { background: var(--accent); }
+.dash-seg--warn { background: var(--warn); }
+.dash-seg--ok { background: var(--good); }
+.dash-seg--bad { background: var(--bad); }
