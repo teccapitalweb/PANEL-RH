@@ -68,6 +68,15 @@
       if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("invitaciones").doc(token).set(patch, { merge: true });
       var m = lsGet("examenrh_invitaciones", {}); if (m[token]) { Object.assign(m[token], patch); lsSet("examenrh_invitaciones", m); } return Promise.resolve();
     },
+
+    leerPreguntas: function () {
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("config").doc("preguntas").get().then(function (s) { return s.exists && Array.isArray(s.data().lista) ? s.data().lista : null; });
+      return Promise.resolve(lsGet("examenrh_preguntas", null));
+    },
+    guardarPreguntas: function (lista) {
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("config").doc("preguntas").set({ lista: lista });
+      lsSet("examenrh_preguntas", lista); return Promise.resolve();
+    },
     login: function (email, pass) { if (on()) return window.auth.signInWithEmailAndPassword(email, pass); return Promise.reject(new Error("demo")); },
     logout: function () { if (on() && window.auth) return window.auth.signOut(); return Promise.resolve(); },
   };

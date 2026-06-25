@@ -327,3 +327,38 @@ tbody tr:last-child td { border-bottom: none; }
 .inv-row__name { font-weight: 600; color: var(--text); font-size: .9rem; }
 .inv-row__sub { font-size: .78rem; color: var(--muted); }
 .inv-empty { font-size: .85rem; color: var(--faint); padding: 8px 2px; }
+
+/* ---------- Editor de preguntas ---------- */
+.modal--editor { max-width: 640px; width: 100%; text-align: left; }
+#edBody { display: flex; flex-direction: column; min-height: 0; }
+.ed-actions { display: flex; gap: 8px; margin: 4px 0 14px; flex-wrap: wrap; }
+.ed-list { display: flex; flex-direction: column; gap: 8px; max-height: 56vh; overflow-y: auto; padding-right: 2px; }
+.ed-row { display: flex; align-items: center; gap: 12px; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--glass); }
+.ed-row__main { flex: 1; min-width: 0; }
+.ed-row__top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+.ed-row__txt { font-size: .88rem; color: var(--text); line-height: 1.35; }
+.ed-row__btns { display: flex; gap: 4px; flex-shrink: 0; }
+.ed-chip { font-family: var(--font-display); font-weight: 600; font-size: .68rem; letter-spacing: .03em; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); color: var(--muted); }
+.ed-chip--likert { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.ed-chip--abierta { color: #b06bd6; border-color: color-mix(in srgb, #b06bd6 40%, transparent); }
+.ed-dim { font-size: .8rem; color: var(--muted); }
+.ed-flag { font-size: .68rem; color: var(--faint); border: 1px dashed var(--border); padding: 2px 6px; border-radius: 5px; }
+.ed-form { display: flex; flex-direction: column; gap: 13px; max-height: 64vh; overflow-y: auto; padding-right: 2px; }
+.ed-types { display: flex; gap: 8px; flex-wrap: wrap; }
+.ed-type { flex: 1; min-width: 120px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--r-md); background: transparent; color: var(--muted); font-family: var(--font-display); font-weight: 600; font-size: .82rem; cursor: pointer; transition: all .15s; }
+.ed-type:hover { border-color: var(--accent); color: var(--text); }
+.ed-type.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ed-note { font-size: .84rem; color: var(--muted); padding: 11px 13px; border: 1px dashed var(--border); border-radius: var(--r-md); }
+.ed-opts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.edopt { display: flex; align-items: center; gap: 8px; }
+.edopt-t { flex: 1; }
+.sel--mini { width: 66px; flex-shrink: 0; }
+.sel--mini select { padding: 9px 26px 9px 10px; font-size: .85rem; }
+.edopt-ck { display: flex; align-items: center; gap: 5px; font-size: .76rem; color: var(--muted); white-space: nowrap; cursor: pointer; }
+.edopt-ck input { accent-color: var(--accent); }
+.edopt-del { flex-shrink: 0; }
+.ed-hint { font-size: .76rem; color: var(--faint); margin-top: 2px; line-height: 1.4; }
+.ed-flags { display: flex; flex-direction: column; gap: 9px; padding: 11px 13px; border: 1px solid var(--border); border-radius: var(--r-md); }
+.ck { display: flex; align-items: center; gap: 8px; font-size: .86rem; color: var(--text); cursor: pointer; }
+.ck input { accent-color: var(--accent); width: 16px; height: 16px; }
+.ed-formbtns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }

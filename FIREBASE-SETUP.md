@@ -53,3 +53,14 @@ borrarlas. Cada enlace es de un solo uso: al terminar el examen queda "completad
 
 > El "guardar progreso" del examen vive solo en el navegador del aspirante
 > (localStorage), no en Firebase: sirve para que retome si cierra la pestaña.
+
+## Editor de preguntas (nuevo)
+Cuando RH edita el examen desde el panel (engranaje → "Editar preguntas"), el banco
+general se guarda en:
+
+    empresas/{EMPRESA_ID}/config/preguntas   ->  { lista: [ ...preguntas... ] }
+
+Ya queda cubierto por las reglas de `config/{docId}`: lo **lee** el kiosko (público)
+y solo lo **escribe** RH autenticado. Si no existe ese documento, el examen usa las
+preguntas por defecto de `data.js`. Las preguntas espejo (consistencia) y las del
+puesto se siguen administrando en código, aparte del banco general.

@@ -633,7 +633,11 @@ function _abrirConfigUI(c, pl) {
   ov.innerHTML = `<div class="modal">
     <div class="modal__head"><h3>Configuración</h3><button class="icon-btn" data-x><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
     <div class="modal__body">
-      <div class="sec-title" style="margin-top:0">Puestos del examen</div>
+      <div class="sec-title" style="margin-top:0">Preguntas del examen</div>
+      <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Agrega, edita o quita las preguntas del banco general sin tocar código. Los espejos y las del puesto se administran aparte.</p>
+      <button class="btn btn--sm" id="cfgEditQ" style="margin-bottom:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>Editar preguntas</button>
+
+      <div class="sec-title">Puestos del examen</div>
       <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Son los botones de "Puesto al que aspiras" que ve el aspirante. Agrega o quita los que necesites.</p>
       <div class="tags" id="cfgPuestos"></div>
       <div class="add-row"><input class="input" id="cfgPuestoNew" placeholder="Nuevo puesto…"><button class="btn btn--sm" id="cfgPuestoAdd">Agregar</button></div>
@@ -670,6 +674,7 @@ function _abrirConfigUI(c, pl) {
   $("#cfgPuestoNew", ov).addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); agregar(); } });
   $$("[data-x]", ov).forEach(b => b.addEventListener("click", close));
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  var _eq = $("#cfgEditQ", ov); if (_eq) _eq.addEventListener("click", abrirEditorPreguntas);
   $("#cfgSave", ov).addEventListener("click", () => {
     const tit = $("#cfgTit", ov).value.trim(), cue = $("#cfgCue", ov).value.trim();
     const resp = $("#cfgResp", ov).value.trim(), cont = $("#cfgCont", ov).value.trim();
@@ -679,6 +684,120 @@ function _abrirConfigUI(c, pl) {
       .then(function () { close(); toast("Configuración guardada."); })
       .catch(function () { $("#cfgErr", ov).textContent = "No se pudo guardar."; });
   });
+}
+
+/* ---------- Editor de preguntas ---------- */
+const LIKERT_ED = [{ t: "Totalmente de acuerdo", v: 3 }, { t: "De acuerdo", v: 2 }, { t: "En desacuerdo", v: 1 }, { t: "Totalmente en desacuerdo", v: 0 }];
+const CHEV = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
+function escED(s) { return (s == null ? "" : String(s)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function clonarQ(q) { return JSON.parse(JSON.stringify(q)); }
+function esLikertED(q) { return q.opciones && q.opciones.length === 4 && q.opciones[0] && q.opciones[0].t === "Totalmente de acuerdo" && q.opciones[3] && q.opciones[3].t === "Totalmente en desacuerdo"; }
+function tipoED(q) { if (q.tipo === "abierta") return "abierta"; if (q.tipo === "likert" || esLikertED(q)) return "likert"; return "opcion"; }
+function genIdED() { return "rh_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+function abrirEditorPreguntas() {
+  window.Store.leerPreguntas().then(function (lista) {
+    const bank = (Array.isArray(lista) && lista.length) ? lista.map(clonarQ) : PREGUNTAS.map(clonarQ);
+    _editorUI(bank);
+  }).catch(function () { _editorUI(PREGUNTAS.map(clonarQ)); });
+}
+function _editorUI(bank) {
+  const DIMS = Object.keys(DIMENSIONES).filter(d => d !== "atencion" && d !== "puesto");
+  const ov = document.createElement("div"); ov.className = "modal-overlay";
+  ov.innerHTML = `<div class="modal modal--editor" role="dialog" aria-modal="true"><div id="edBody"></div></div>`;
+  document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  const body = ov.querySelector("#edBody");
+  const q = s => body.querySelector(s), qq = s => [...body.querySelectorAll(s)];
+  const guardar = () => window.Store.guardarPreguntas(bank).catch(() => toast("No se pudo guardar."));
+
+  function pintarLista() {
+    body.innerHTML = `
+      <div class="resumen-head"><h3>Editar preguntas del examen</h3><button class="icon-btn" id="edClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <p class="inv-intro">${bank.length} preguntas en el banco general. Los cambios se guardan solos.</p>
+      <div class="ed-actions"><button class="btn btn--primary btn--sm" id="edAdd">+ Agregar pregunta</button><button class="btn btn--sm" id="edReset">Restaurar originales</button></div>
+      <div class="ed-list">${bank.map((it, i) => {
+        const tp = tipoED(it); const tl = tp === "likert" ? "Escala" : tp === "abierta" ? "Abierta" : "Opción";
+        const dl = tp === "abierta" ? (it.tag || "Entrevista") : (DIMENSIONES[it.dim] || it.dim);
+        return `<div class="ed-row"><div class="ed-row__main"><div class="ed-row__top"><span class="ed-chip ed-chip--${tp}">${tl}</span><span class="ed-dim">${escED(dl)}</span>${it.info ? '<span class="ed-flag">no califica</span>' : ''}</div><div class="ed-row__txt">${escED((it.texto || "").slice(0, 95))}${(it.texto || "").length > 95 ? "…" : ""}</div></div><div class="ed-row__btns"><button class="icon-btn ed-edit" data-i="${i}" aria-label="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg></button><button class="icon-btn ed-del" data-i="${i}" aria-label="Eliminar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></div></div>`;
+      }).join("")}</div>`;
+    q("#edClose").addEventListener("click", close);
+    q("#edAdd").addEventListener("click", () => pintarForm(null));
+    q("#edReset").addEventListener("click", () => { if (confirm("¿Restaurar las preguntas originales? Se perderán los cambios que hayas hecho.")) { bank.length = 0; PREGUNTAS.forEach(p => bank.push(clonarQ(p))); guardar(); pintarLista(); toast("Preguntas restauradas."); } });
+    qq(".ed-edit").forEach(b => b.addEventListener("click", () => pintarForm(parseInt(b.dataset.i))));
+    qq(".ed-del").forEach(b => b.addEventListener("click", () => { if (confirm("¿Eliminar esta pregunta?")) { bank.splice(parseInt(b.dataset.i), 1); guardar(); pintarLista(); } }));
+  }
+
+  function pintarForm(idx) {
+    const edit = idx != null; const base = edit ? bank[idx] : null;
+    let tp = base ? tipoED(base) : "opcion";
+    let dim = base ? (base.dim || DIMS[0]) : DIMS[0];
+    let texto = base ? (base.texto || "") : "";
+    let sinPorque = base ? !!base.sinPorque : false, info = base ? !!base.info : false;
+    let tag = base ? (base.tag || "") : "", ayuda = base ? (base.ayuda || "") : "", fijarte = base ? (base.fijarte || "") : "";
+    let opts = (base && tipoED(base) === "opcion" && base.opciones) ? base.opciones.map(o => ({ t: o.t, v: o.v == null ? 2 : o.v, correcta: !!o.correcta, otro: !!o.otro })) : [{ t: "", v: 3, correcta: false }, { t: "", v: 0, correcta: false }];
+    if (DIMS.indexOf(dim) < 0 && tp !== "abierta") dim = DIMS[0];
+
+    function harvest() {
+      const t = q("#edTexto"); if (t) texto = t.value;
+      const d = q("#edDim"); if (d) dim = d.value;
+      const sp = q("#edSinPorque"); if (sp) sinPorque = sp.checked;
+      const inf = q("#edInfo"); if (inf) info = inf.checked;
+      const tg = q("#edTag"); if (tg) tag = tg.value;
+      const ay = q("#edAyuda"); if (ay) ayuda = ay.value;
+      const fj = q("#edFijarte"); if (fj) fijarte = fj.value;
+      qq(".edopt").forEach((row, i) => { if (opts[i]) { opts[i].t = row.querySelector(".edopt-t").value; opts[i].v = parseInt(row.querySelector(".edopt-v").value); const c = row.querySelector(".edopt-c"); opts[i].correcta = c ? c.checked : false; } });
+    }
+    function render() {
+      let cuerpo = "";
+      if (tp === "likert") cuerpo = `<div class="ed-note">Usa la escala estándar: Totalmente de acuerdo (3) → Totalmente en desacuerdo (0). No necesitas escribir opciones.</div>`;
+      else if (tp === "opcion") cuerpo = `<div class="field"><label class="field__label">Opciones</label><div class="ed-opts">${opts.map((o, i) => `<div class="edopt"><input class="input edopt-t" placeholder="Opción ${i + 1}" value="${escED(o.t)}"><div class="sel sel--mini"><select class="edopt-v">${[3, 2, 1, 0].map(v => `<option ${o.v === v ? "selected" : ""}>${v}</option>`).join("")}</select>${CHEV}</div><label class="edopt-ck"><input type="checkbox" class="edopt-c" ${o.correcta ? "checked" : ""}><span>correcta</span></label>${opts.length > 2 ? `<button type="button" class="icon-btn edopt-del" data-i="${i}" aria-label="Quitar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>` : ""}</div>`).join("")}</div><button type="button" class="btn btn--sm" id="edOptAdd">+ Opción</button><p class="ed-hint">Valor 3 = mejor respuesta, 0 = peor. Marca "correcta" solo en preguntas de intelecto con una respuesta correcta.</p></div>`;
+      const flags = tp !== "abierta" ? `<label class="ck"><input type="checkbox" id="edSinPorque" ${sinPorque ? "checked" : ""}><span>No pedir "¿por qué?"</span></label><label class="ck"><input type="checkbox" id="edInfo" ${info ? "checked" : ""}><span>Informativa (no califica)</span></label>` : "";
+      const dimBlock = tp === "abierta"
+        ? `<div class="field"><label class="field__label">Etiqueta / área</label><input class="input" id="edTag" value="${escED(tag)}" placeholder="Ej. Motivación"></div><div class="field"><label class="field__label">Ayuda para el aspirante (opcional)</label><input class="input" id="edAyuda" value="${escED(ayuda)}" placeholder="Una pista breve"></div><div class="field"><label class="field__label">Qué observar (nota para RH)</label><textarea class="input" id="edFijarte" rows="2" placeholder="Qué distingue una buena respuesta">${escED(fijarte)}</textarea></div>`
+        : `<div class="field"><label class="field__label">Dimensión</label><div class="sel"><select id="edDim">${DIMS.map(d => `<option value="${d}" ${d === dim ? "selected" : ""}>${DIMENSIONES[d]}</option>`).join("")}</select>${CHEV}</div></div>`;
+      body.innerHTML = `
+        <div class="resumen-head"><h3>${edit ? "Editar pregunta" : "Nueva pregunta"}</h3><button class="icon-btn" id="edBack" aria-label="Volver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+        <div class="ed-form">
+          <div class="field"><label class="field__label">Tipo de pregunta</label><div class="ed-types">${["likert", "opcion", "abierta"].map(t => `<button type="button" class="ed-type ${t === tp ? "is-on" : ""}" data-t="${t}">${t === "likert" ? "Escala de acuerdo" : t === "opcion" ? "Opción múltiple" : "Pregunta abierta"}</button>`).join("")}</div></div>
+          <div class="field"><label class="field__label">Pregunta</label><textarea class="input" id="edTexto" rows="2" placeholder="Escribe la pregunta">${escED(texto)}</textarea></div>
+          ${dimBlock}
+          ${cuerpo}
+          ${flags ? `<div class="ed-flags">${flags}</div>` : ""}
+          <p class="form-error" id="edErr"></p>
+          <div class="ed-formbtns"><button class="btn" id="edCancel">Cancelar</button><button class="btn btn--primary" id="edSave">Guardar pregunta</button></div>
+        </div>`;
+      qq(".ed-type").forEach(b => b.addEventListener("click", () => { harvest(); tp = b.dataset.t; if (tp === "opcion" && opts.length < 2) opts = [{ t: "", v: 3, correcta: false }, { t: "", v: 0, correcta: false }]; render(); }));
+      const add = q("#edOptAdd"); if (add) add.addEventListener("click", () => { harvest(); opts.push({ t: "", v: 2, correcta: false }); render(); });
+      qq(".edopt-del").forEach(b => b.addEventListener("click", () => { harvest(); if (opts.length > 2) { opts.splice(parseInt(b.dataset.i), 1); render(); } }));
+      q("#edBack").addEventListener("click", pintarLista);
+      q("#edCancel").addEventListener("click", pintarLista);
+      q("#edSave").addEventListener("click", () => { harvest(); guardarPregunta(); });
+    }
+    function guardarPregunta() {
+      const err = q("#edErr");
+      if (!texto.trim()) { err.textContent = "Escribe la pregunta."; return; }
+      let nq;
+      if (tp === "abierta") {
+        nq = { id: (base && base.id) || genIdED(), dim: "entrevista", tipo: "abierta", texto: texto.trim(), tag: tag.trim() || "Entrevista", ayuda: ayuda.trim(), fijarte: fijarte.trim() };
+      } else if (tp === "likert") {
+        nq = { id: (base && base.id) || genIdED(), dim: dim, tipo: "likert", texto: texto.trim(), opciones: LIKERT_ED.map(o => ({ t: o.t, v: o.v })) };
+        if (sinPorque) nq.sinPorque = true; if (info) nq.info = true;
+        if (base && base.porqueLabel) nq.porqueLabel = base.porqueLabel;
+      } else {
+        const limpio = opts.map(o => { const x = { t: (o.t || "").trim(), v: isNaN(o.v) ? 2 : o.v }; if (o.correcta) x.correcta = true; if (o.otro) x.otro = true; return x; }).filter(o => o.t);
+        if (limpio.length < 2) { err.textContent = "Agrega al menos 2 opciones con texto."; return; }
+        nq = { id: (base && base.id) || genIdED(), dim: dim, texto: texto.trim(), opciones: limpio };
+        if (sinPorque) nq.sinPorque = true; if (info) nq.info = true;
+        if (base && base.porqueLabel) nq.porqueLabel = base.porqueLabel;
+      }
+      if (edit) bank[idx] = nq; else bank.push(nq);
+      guardar(); pintarLista();
+    }
+    render();
+  }
+  pintarLista();
 }
 
 /* ---------- Tema / login ---------- */

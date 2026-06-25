@@ -213,7 +213,7 @@ function renderInstrucciones() {
 function barajar(a) { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = r[i]; r[i] = r[j]; r[j] = t; } return r; }
 function ordenOpciones(q) {
   if (!q.opciones) return null;
-  if (q.opciones === L || q.tipo === "trampa") return q.opciones.map((_, i) => i); // escala Likert y trampas: orden fijo
+  if (q.opciones === L || q.tipo === "likert" || q.tipo === "trampa") return q.opciones.map((_, i) => i); // escala Likert y trampas: orden fijo
   const normales = [], otros = [];
   q.opciones.forEach((o, i) => { (o.otro ? otros : normales).push(i); });
   return barajar(normales).concat(otros); // baraja distractores, "Otro" siempre al final
@@ -244,12 +244,14 @@ function intercalar(cuerpo, extras) {
   });
   return out;
 }
+function bancoPreguntas() { return (window.__PREGUNTAS_REMOTAS && window.__PREGUNTAS_REMOTAS.length) ? window.__PREGUNTAS_REMOTAS : PREGUNTAS; }
 function construirExamen(puesto) {
+  const BANCO = bancoPreguntas();
   const rol = (typeof PREGUNTAS_PUESTO !== "undefined" && PREGUNTAS_PUESTO[puesto]) || [];
   // 1) Las "Sobre ti" iniciales se quedan al principio, sin interrumpir (conocer al aspirante primero).
-  let i = 0; while (i < PREGUNTAS.length && PREGUNTAS[i].dim === "perfil") i++;
-  const intro = PREGUNTAS.slice(0, i);
-  const cuerpo = PREGUNTAS.slice(i);
+  let i = 0; while (i < BANCO.length && BANCO[i].dim === "perfil") i++;
+  const intro = BANCO.slice(0, i);
+  const cuerpo = BANCO.slice(i);
   // 2) Trampas y espejos se intercalan dentro del cuerpo (no al final, pares separados).
   const cuerpoX = intercalar(cuerpo, ordenarExtras());
   // 3) Orden final: Sobre ti → resto del banco (en su orden) → preguntas del puesto.
@@ -613,6 +615,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (cfg.avisoResponsable) CONFIG.avisoResponsable = cfg.avisoResponsable;
     if (cfg.avisoContacto) CONFIG.avisoContacto = cfg.avisoContacto;
     if (Array.isArray(cfg.puestos) && cfg.puestos.length) window.__PUESTOS_REMOTOS = cfg.puestos;
+  }).catch(function () {});
+  window.Store.leerPreguntas().then(function (lista) {
+    if (Array.isArray(lista) && lista.length) window.__PREGUNTAS_REMOTAS = lista;
   }).catch(function () {});
   $("#themeBtn").addEventListener("click", () => applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
   const _rh = $("#rhAccess"); if (_rh) _rh.addEventListener("click", function () { if (window.FIREBASE_ON) { window.location.href = "panel.html"; } else { abrirAccesoRH(); } });
