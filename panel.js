@@ -221,50 +221,69 @@ function pintarFilas() {
 }
 
 /* ---------- Comparador de finalistas ---------- */
+function svgBarrasAgrupadas(grupos, series, cols) {
+  const nC = series.length;
+  const barW = nC <= 1 ? 26 : nC === 2 ? 18 : 14, barGap = 4, groupPad = 28;
+  const innerW = nC * barW + (nC - 1) * barGap, groupW = innerW + groupPad;
+  const leftPad = 34, rightPad = 14, topPad = 14, plotH = 220, labelH = 86;
+  const W = leftPad + grupos.length * groupW + rightPad, H = topPad + plotH + labelH;
+  const yBase = topPad + plotH;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" class="cmp-svg">`;
+  [0, 20, 40, 60, 80, 100].forEach(g => { const y = (yBase - (g / 100) * plotH).toFixed(1); s += `<line class="cmp-gridline" x1="${leftPad}" y1="${y}" x2="${W - rightPad}" y2="${y}"/><text class="cmp-ylabel" x="${leftPad - 6}" y="${(+y + 3).toFixed(1)}" text-anchor="end">${g}</text>`; });
+  s += `<line class="cmp-axis" x1="${leftPad}" y1="${yBase}" x2="${W - rightPad}" y2="${yBase}"/>`;
+  grupos.forEach((gr, i) => {
+    const gx = leftPad + i * groupW + groupPad / 2, cx = (gx + innerW / 2).toFixed(1);
+    gr.vals.forEach((v, j) => {
+      if (v == null) return;
+      const bx = (gx + j * (barW + barGap)).toFixed(1), bh = (v / 100) * plotH, by = (yBase - bh).toFixed(1);
+      s += `<rect x="${bx}" y="${by}" width="${barW}" height="${bh.toFixed(1)}" rx="2" fill="${cols[j]}"><title>${series[j]} · ${gr.label}: ${v}%</title></rect>`;
+      s += `<text class="cmp-vlabel" x="${(+bx + barW / 2).toFixed(1)}" y="${(+by - 3).toFixed(1)}" text-anchor="middle">${v}</text>`;
+    });
+    s += `<text class="cmp-glabel" x="${cx}" y="${yBase + 13}" text-anchor="end" transform="rotate(-32 ${cx} ${yBase + 13})">${gr.label}</text>`;
+  });
+  return s + `</svg>`;
+}
+
 function abrirComparador(ids) {
   const sel = ids.map(id => state.aspirantes.find(a => a.id === id)).filter(Boolean);
   if (sel.length < 2) return;
   const idxMax = arr => { const nums = arr.filter(v => typeof v === "number" && v >= 0); if (nums.length < 2) return -1; const mx = Math.max(...nums); return arr.filter(v => v === mx).length > 1 ? -1 : arr.indexOf(mx); };
   const idxMin = arr => { if (arr.length < 2) return -1; const mn = Math.min(...arr); return arr.filter(v => v === mn).length > 1 ? -1 : arr.indexOf(mn); };
   const fila = (label, valores, fmt, mejorIdx) => `<tr><th>${label}</th>${valores.map((v, i) => `<td class="${mejorIdx === i ? "cmp-best" : ""}">${fmt ? fmt(v) : (v == null ? "—" : v)}</td>`).join("")}</tr>`;
-  const celdaBarra = (v, mejor, suf) => {
-    if (v == null) return `<td class="${mejor ? "cmp-best" : ""}">—</td>`;
-    const cls = clsDePct(v / 100);
-    return `<td class="${mejor ? "cmp-best" : ""}"><div class="cmp-cell"><div class="cmp-bar"><div class="cmp-bar__fill cmp-bar__fill--${cls}" style="width:${v}%"></div></div><span class="cmp-num">${v}${suf}</span></div></td>`;
-  };
-  const filaBarra = (label, valores, suf, mejorIdx) => `<tr><th>${label}</th>${valores.map((v, i) => celdaBarra(v, mejorIdx === i, suf)).join("")}</tr>`;
 
-  const dimKeys = Object.keys(DIMENSIONES).filter(d => sel.some(a => a.resultado.porDim[d]));
+  const DIM_CORTO = { perfil: "Sobre ti", personalidad: "Personalidad", social: "Sociales", intelecto: "Intelecto", juicio: "Juicio", servicio: "Servicio", estres: "Estrés", psicosocial: "Psicosocial", honestidad: "Honestidad", logistica: "Disponib.", atencion: "Atención", puesto: "Puesto", entrevista: "Entrevista" };
+  const corto = d => DIM_CORTO[d] || DIMENSIONES[d] || d;
+  const COLS = ["#3B82F6", "#F59E0B", "#22C55E"];
+
+  const dimKeys = Object.keys(DIMENSIONES).filter(d => d !== "atencion" && sel.some(a => a.resultado.porDim[d]));
   const gVals = sel.map(a => pct100(a.resultado.global));
   const ajVals = sel.map(a => a.resultado.puesto ? pct100(a.resultado.puesto.pct) : null);
-  const dimRows = dimKeys.map(d => {
-    const vals = sel.map(a => a.resultado.porDim[d] ? pct100(a.resultado.porDim[d].pct) : null);
-    return filaBarra(DIMENSIONES[d], vals, "%", idxMax(vals.map(v => v == null ? -1 : v)));
-  }).join("");
   const banVals = sel.map(a => a.resultado.banderas.length);
   const confVals = sel.map(a => { const cf = a.resultado; return ((cf.calidad && cf.calidad.bandera) || (cf.control && cf.control.bandera) || (cf.consistencia && cf.consistencia.bandera)) ? "Revisar" : "OK"; });
   const reacVals = sel.map(a => (a.atencion && a.atencion.avgMs) || null);
   const estVals = sel.map(a => `<span class="badge badge--${ESTADOS[estadoDe(a)].cls}">${ESTADOS[estadoDe(a)].t}</span>`);
-  const cols = sel.length + 1;
+  const series = sel.map(a => a.datos.nombre);
+
+  const grupos = [{ label: "Global", vals: gVals }];
+  if (ajVals.some(v => v != null)) grupos.push({ label: "Ajuste", vals: ajVals });
+  dimKeys.forEach(d => grupos.push({ label: corto(d), vals: sel.map(a => a.resultado.porDim[d] ? pct100(a.resultado.porDim[d].pct) : null) }));
+  const legend = `<div class="cmp-legend">${series.map((n, i) => `<span class="cmp-leg"><i style="background:${COLS[i]}"></i>${n}</span>`).join("")}</div>`;
 
   const ov = document.createElement("div"); ov.className = "modal-overlay";
   ov.innerHTML = `<div class="modal modal--cmp" role="dialog" aria-modal="true">
     <div class="resumen-head"><h3>Comparar finalistas</h3><button class="icon-btn" id="cmpClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    ${legend}
+    <div class="cmp-chart">${svgBarrasAgrupadas(grupos, series, COLS)}</div>
     <div class="cmp-wrap"><table class="cmp-table">
       <thead><tr><th></th>${sel.map(a => `<th><div class="cmp-name">${a.datos.nombre}</div><div class="cmp-role">${a.datos.puesto}</div></th>`).join("")}</tr></thead>
       <tbody>
-        ${filaBarra("Puntaje global", gVals, "", idxMax(gVals))}
-        ${ajVals.some(v => v != null) ? filaBarra("Ajuste al puesto", ajVals, "%", idxMax(ajVals.map(v => v == null ? -1 : v))) : ""}
-        <tr class="cmp-div"><th colspan="${cols}">Por dimensión</th></tr>
-        ${dimRows}
-        <tr class="cmp-div"><th colspan="${cols}">Señales y estado</th></tr>
         ${fila("Banderas críticas", banVals, v => `${v}`, idxMin(banVals))}
         ${fila("Confiabilidad", confVals, null, -1)}
         ${fila("Reacción", reacVals, v => v == null ? "—" : `${v} ms`, -1)}
         ${fila("Estado", estVals, null, -1)}
       </tbody>
     </table></div>
-    <div class="cmp-foot">El mejor de cada fila va resaltado. Comparas ${sel.length} de un máximo de 3.</div>
+    <div class="cmp-foot">Cada barra es un finalista; la más alta de cada grupo es la mejor. Comparas ${sel.length} de un máximo de 3.</div>
   </div>`;
   document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
   const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
