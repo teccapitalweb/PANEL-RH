@@ -14,8 +14,16 @@ const pct100 = p => Math.round(p * 100);
 const fdRel = n => { const d = new Date(); d.setDate(d.getDate() + n); const z = x => String(x).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; };
 
 /* ---------- Calificación (igual que el kiosko) ---------- */
-function nivelDimObj(pct) { return NIVEL_DIM.find(n => pct >= n.min) || NIVEL_DIM[NIVEL_DIM.length - 1]; }
+var UMBRALES = { fortaleza: 0.75, promedio: 0.45, bandera: 0.45 };
+function nivelDimObj(pct) { return pct >= UMBRALES.fortaleza ? { label: "Fortaleza", cls: "ok" } : pct >= UMBRALES.promedio ? { label: "Promedio", cls: "warn" } : { label: "Área de oportunidad", cls: "bad" }; }
 function clsDePct(pct) { return nivelDimObj(pct).cls; }
+function reaplicarUmbrales(r) {
+  if (!r || !r.porDim) return r;
+  Object.keys(r.porDim).forEach(d => { if (r.porDim[d]) r.porDim[d].nivel = nivelDimObj(r.porDim[d].pct).label; });
+  r.banderas = CRITICAS.filter(d => r.porDim[d] && r.porDim[d].pct < UMBRALES.bandera);
+  if (r.puesto) r.puesto.nivel = nivelDimObj(r.puesto.pct).label;
+  return r;
+}
 function calcularResultado(resp, aten) {
   const dims = {};
   Object.keys(DIMENSIONES).forEach(d => { if (d !== "atencion") dims[d] = { sum: 0, max: 0 }; });
@@ -26,7 +34,7 @@ function calcularResultado(resp, aten) {
   const vals = Object.values(porDim).map(x => x.pct);
   const global = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
   const aciertos = Object.values(resp).filter(r => r.dim === "intelecto" && r.correcta).length;
-  const banderas = CRITICAS.filter(d => porDim[d] && porDim[d].pct < 0.45);
+  const banderas = CRITICAS.filter(d => porDim[d] && porDim[d].pct < UMBRALES.bandera);
   const rResp = Object.values(resp).filter(r => r.dim === "puesto" && !r.info);
   const rmax = rResp.length * 3, rsum = rResp.reduce((s, r) => s + r.v, 0);
   const puesto = rmax ? { pct: rsum / rmax, nivel: nivelDimObj(rsum / rmax).label, n: rResp.length } : null;
@@ -96,6 +104,7 @@ function cargar() {
       var evals = window.Store.evalsLocal();
       arr.forEach(function (a) { var e = evals[a.id]; if (e) { if (e.estado) a.estado = e.estado; else if (e.decision) a.decision = e.decision; a.notas = e.notas || ""; } });
     }
+      arr.forEach(function (a) { reaplicarUmbrales(a.resultado); });
     return { arr: arr, demo: demo };
   });
 }
@@ -218,13 +227,19 @@ function abrirComparador(ids) {
   const idxMax = arr => { const nums = arr.filter(v => typeof v === "number" && v >= 0); if (nums.length < 2) return -1; const mx = Math.max(...nums); return arr.filter(v => v === mx).length > 1 ? -1 : arr.indexOf(mx); };
   const idxMin = arr => { if (arr.length < 2) return -1; const mn = Math.min(...arr); return arr.filter(v => v === mn).length > 1 ? -1 : arr.indexOf(mn); };
   const fila = (label, valores, fmt, mejorIdx) => `<tr><th>${label}</th>${valores.map((v, i) => `<td class="${mejorIdx === i ? "cmp-best" : ""}">${fmt ? fmt(v) : (v == null ? "—" : v)}</td>`).join("")}</tr>`;
+  const celdaBarra = (v, mejor, suf) => {
+    if (v == null) return `<td class="${mejor ? "cmp-best" : ""}">—</td>`;
+    const cls = clsDePct(v / 100);
+    return `<td class="${mejor ? "cmp-best" : ""}"><div class="cmp-cell"><div class="cmp-bar"><div class="cmp-bar__fill cmp-bar__fill--${cls}" style="width:${v}%"></div></div><span class="cmp-num">${v}${suf}</span></div></td>`;
+  };
+  const filaBarra = (label, valores, suf, mejorIdx) => `<tr><th>${label}</th>${valores.map((v, i) => celdaBarra(v, mejorIdx === i, suf)).join("")}</tr>`;
 
   const dimKeys = Object.keys(DIMENSIONES).filter(d => sel.some(a => a.resultado.porDim[d]));
   const gVals = sel.map(a => pct100(a.resultado.global));
   const ajVals = sel.map(a => a.resultado.puesto ? pct100(a.resultado.puesto.pct) : null);
   const dimRows = dimKeys.map(d => {
     const vals = sel.map(a => a.resultado.porDim[d] ? pct100(a.resultado.porDim[d].pct) : null);
-    return fila(DIMENSIONES[d], vals, v => v == null ? "—" : `${v}%`, idxMax(vals.map(v => v == null ? -1 : v)));
+    return filaBarra(DIMENSIONES[d], vals, "%", idxMax(vals.map(v => v == null ? -1 : v)));
   }).join("");
   const banVals = sel.map(a => a.resultado.banderas.length);
   const confVals = sel.map(a => { const cf = a.resultado; return ((cf.calidad && cf.calidad.bandera) || (cf.control && cf.control.bandera) || (cf.consistencia && cf.consistencia.bandera)) ? "Revisar" : "OK"; });
@@ -238,8 +253,8 @@ function abrirComparador(ids) {
     <div class="cmp-wrap"><table class="cmp-table">
       <thead><tr><th></th>${sel.map(a => `<th><div class="cmp-name">${a.datos.nombre}</div><div class="cmp-role">${a.datos.puesto}</div></th>`).join("")}</tr></thead>
       <tbody>
-        ${fila("Puntaje global", gVals, v => `${v}`, idxMax(gVals))}
-        ${ajVals.some(v => v != null) ? fila("Ajuste al puesto", ajVals, v => v == null ? "—" : `${v}%`, idxMax(ajVals.map(v => v == null ? -1 : v))) : ""}
+        ${filaBarra("Puntaje global", gVals, "", idxMax(gVals))}
+        ${ajVals.some(v => v != null) ? filaBarra("Ajuste al puesto", ajVals, "%", idxMax(ajVals.map(v => v == null ? -1 : v))) : ""}
         <tr class="cmp-div"><th colspan="${cols}">Por dimensión</th></tr>
         ${dimRows}
         <tr class="cmp-div"><th colspan="${cols}">Señales y estado</th></tr>
@@ -346,8 +361,8 @@ function generarResumen(a) {
   const r = a.resultado, g = r.global, nombre = a.datos.nombre, puesto = a.datos.puesto;
   const dims = Object.keys(DIMENSIONES).filter(d => d !== "puesto" && r.porDim[d]).map(d => ({ d, pct: r.porDim[d].pct }));
   const desc = dims.slice().sort((x, y) => y.pct - x.pct);
-  const fuertes = desc.filter(x => x.pct >= 0.75).slice(0, 2);
-  const debiles = desc.filter(x => x.pct < 0.45).sort((x, y) => x.pct - y.pct);
+  const fuertes = desc.filter(x => x.pct >= UMBRALES.fortaleza).slice(0, 2);
+  const debiles = desc.filter(x => x.pct < UMBRALES.promedio).sort((x, y) => x.pct - y.pct);
   const nom = d => (DIMENSIONES[d] || d).toLowerCase();
 
   const S = [];
@@ -623,6 +638,7 @@ function abrirConfig() {
       cuerpo: (cfg && cfg.mensajeFinCuerpo) || CONFIG.mensajeFinCuerpo,
       avisoResp: (cfg && cfg.avisoResponsable) || CONFIG.avisoResponsable || "",
       avisoCont: (cfg && cfg.avisoContacto) || CONFIG.avisoContacto || "",
+      umbrales: (cfg && cfg.umbrales) || UMBRALES,
     };
     var pl = ((cfg && Array.isArray(cfg.puestos) && cfg.puestos.length) ? cfg.puestos : PUESTOS).slice();
     _abrirConfigUI(c, pl);
@@ -651,6 +667,14 @@ function _abrirConfigUI(c, pl) {
       <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Responsable y correo para derechos ARCO. Aparecen en el aviso que el aspirante acepta antes de empezar.</p>
       <div class="field"><label class="field__label">Responsable (empresa)</label><input class="input" id="cfgResp" value="${(c.avisoResp || "").replace(/"/g, "&quot;")}"></div>
       <div class="field"><label class="field__label">Correo de contacto (ARCO)</label><input class="input" id="cfgCont" type="email" value="${(c.avisoCont || "").replace(/"/g, "&quot;")}"></div>
+
+      <div class="sec-title">Umbrales de calificación</div>
+      <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Define desde qué porcentaje una dimensión cuenta como Fortaleza o como Área de oportunidad, y cuándo se levanta una bandera en las dimensiones críticas (honestidad y juicio). Aplica a todos los resultados al instante.</p>
+      <div class="umb-grid">
+        <div class="field"><label class="field__label">Fortaleza desde (%)</label><input class="input" id="cfgUFort" type="number" min="1" max="100" value="${Math.round((c.umbrales.fortaleza || 0.75) * 100)}"></div>
+        <div class="field"><label class="field__label">Promedio desde (%)</label><input class="input" id="cfgUProm" type="number" min="1" max="100" value="${Math.round((c.umbrales.promedio || 0.45) * 100)}"></div>
+        <div class="field"><label class="field__label">Bandera si baja de (%)</label><input class="input" id="cfgUBand" type="number" min="1" max="100" value="${Math.round((c.umbrales.bandera || 0.45) * 100)}"></div>
+      </div>
       <p class="cfg-error" id="cfgErr"></p>
     </div>
     <div class="modal__foot"><button class="btn btn--ghost" data-x>Cancelar</button><button class="btn btn--primary" id="cfgSave">Guardar</button></div>
@@ -680,8 +704,12 @@ function _abrirConfigUI(c, pl) {
     const resp = $("#cfgResp", ov).value.trim(), cont = $("#cfgCont", ov).value.trim();
     if (!pl.length) { $("#cfgErr", ov).textContent = "Deja al menos un puesto."; return; }
     if (!tit || !cue) { $("#cfgErr", ov).textContent = "El título y el mensaje no pueden quedar vacíos."; return; }
-    window.Store.guardarConfig({ mensajeFinTitulo: tit, mensajeFinCuerpo: cue, puestos: pl, avisoResponsable: resp, avisoContacto: cont })
-      .then(function () { close(); toast("Configuración guardada."); })
+    const uf = parseInt($("#cfgUFort", ov).value), up = parseInt($("#cfgUProm", ov).value), ub = parseInt($("#cfgUBand", ov).value);
+    if ([uf, up, ub].some(x => isNaN(x) || x < 1 || x > 100)) { $("#cfgErr", ov).textContent = "Los umbrales deben ser porcentajes entre 1 y 100."; return; }
+    if (up >= uf) { $("#cfgErr", ov).textContent = "El umbral de Promedio debe ser menor que el de Fortaleza."; return; }
+    const umbrales = { fortaleza: uf / 100, promedio: up / 100, bandera: ub / 100 };
+    window.Store.guardarConfig({ mensajeFinTitulo: tit, mensajeFinCuerpo: cue, puestos: pl, avisoResponsable: resp, avisoContacto: cont, umbrales: umbrales })
+      .then(function () { Object.assign(UMBRALES, umbrales); close(); toast("Configuración guardada."); renderApp(); })
       .catch(function () { $("#cfgErr", ov).textContent = "No se pudo guardar."; });
   });
 }
@@ -807,7 +835,7 @@ function applyTheme(t) {
   $("#iconSun").style.display = t === "dark" ? "block" : "none";
   try { localStorage.setItem("examenrh-theme", t); } catch (e) {}
 }
-function bootApp() { $("#login").style.display = "none"; $("#app").classList.add("is-on"); $("#hdrName").textContent = "Recursos Humanos"; renderApp(); }
+function bootApp() { $("#login").style.display = "none"; $("#app").classList.add("is-on"); $("#hdrName").textContent = "Recursos Humanos"; window.Store.leerConfig().then(function (cfg) { if (cfg && cfg.umbrales) Object.assign(UMBRALES, cfg.umbrales); }).catch(function () {}).then(function () { renderApp(); }); }
 
 document.addEventListener("DOMContentLoaded", () => {
   try { applyTheme(localStorage.getItem("examenrh-theme") || "light"); } catch (e) { applyTheme("light"); }

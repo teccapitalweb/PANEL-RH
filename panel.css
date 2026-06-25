@@ -362,3 +362,15 @@ tbody tr:last-child td { border-bottom: none; }
 .ck { display: flex; align-items: center; gap: 8px; font-size: .86rem; color: var(--text); cursor: pointer; }
 .ck input { accent-color: var(--accent); width: 16px; height: 16px; }
 .ed-formbtns { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+/* ---------- Umbrales en config ---------- */
+.umb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 4px; }
+
+/* ---------- Barras en el comparador ---------- */
+.cmp-table td .cmp-cell { display: flex; align-items: center; gap: 9px; }
+.cmp-bar { flex: 1; height: 7px; min-width: 34px; background: color-mix(in srgb, var(--muted) 16%, transparent); border-radius: 99px; overflow: hidden; }
+.cmp-bar__fill { height: 100%; border-radius: 99px; min-width: 2px; }
+.cmp-bar__fill--ok { background: var(--good); }
+.cmp-bar__fill--warn { background: var(--warn); }
+.cmp-bar__fill--bad { background: var(--bad); }
+.cmp-num { min-width: 40px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }

@@ -419,6 +419,7 @@ const RX = {
 function renderReaccion() { RX.intro(); }
 
 /* ---------- Cálculo del resultado (lo usa el panel de RH) ---------- */
+var UMBRALES = { fortaleza: 0.75, promedio: 0.45, bandera: 0.45 };
 function calcularResultado(resp, aten) {
   const dims = {};
   Object.keys(DIMENSIONES).forEach(d => { if (d !== "atencion") dims[d] = { sum: 0, max: 0 }; });
@@ -431,13 +432,13 @@ function calcularResultado(resp, aten) {
   const vals = Object.values(porDim).map(x => x.pct);
   const global = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
   const aciertos = Object.values(resp).filter(r => r.dim === "intelecto" && r.correcta).length;
-  const banderas = CRITICAS.filter(d => porDim[d] && porDim[d].pct < 0.45);
+  const banderas = CRITICAS.filter(d => porDim[d] && porDim[d].pct < UMBRALES.bandera);
   const rResp = Object.values(resp).filter(r => r.dim === "puesto" && !r.info);
   const rmax = rResp.length * 3, rsum = rResp.reduce((s, r) => s + r.v, 0);
   const puesto = rmax ? { pct: rsum / rmax, nivel: nivelDim(rsum / rmax), n: rResp.length } : null;
   return { porDim, global, aciertosIntelecto: aciertos, banderas, puesto };
 }
-function nivelDim(pct) { return (NIVEL_DIM.find(n => pct >= n.min) || NIVEL_DIM[NIVEL_DIM.length - 1]).label; }
+function nivelDim(pct) { return pct >= UMBRALES.fortaleza ? "Fortaleza" : pct >= UMBRALES.promedio ? "Promedio" : "Área de oportunidad"; }
 
 function calcularConfianza(resp) {
   const arr = Object.values(resp);
@@ -615,6 +616,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (cfg.avisoResponsable) CONFIG.avisoResponsable = cfg.avisoResponsable;
     if (cfg.avisoContacto) CONFIG.avisoContacto = cfg.avisoContacto;
     if (Array.isArray(cfg.puestos) && cfg.puestos.length) window.__PUESTOS_REMOTOS = cfg.puestos;
+    if (cfg.umbrales) Object.assign(UMBRALES, cfg.umbrales);
   }).catch(function () {});
   window.Store.leerPreguntas().then(function (lista) {
     if (Array.isArray(lista) && lista.length) window.__PREGUNTAS_REMOTAS = lista;
