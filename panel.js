@@ -13,6 +13,25 @@ const initials = n => n.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCa
 const pct100 = p => Math.round(p * 100);
 const fdRel = n => { const d = new Date(); d.setDate(d.getDate() + n); const z = x => String(x).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; };
 
+/* ---------- White-label (marca) ---------- */
+var MARCA = { nombre: "", logo: "", color: "" };
+function aplicarColor(hex) {
+  if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+  var r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  var s = document.documentElement.style;
+  s.setProperty("--accent", hex); s.setProperty("--accent-2", hex); s.setProperty("--accent-soft", "rgba(" + r + "," + g + "," + b + ",.14)");
+}
+function aplicarMarcaPanel(m) {
+  if (!m) return;
+  MARCA = m;
+  if (m.color) aplicarColor(m.color);
+  var b = document.getElementById("appBrand");
+  if (b) {
+    var ic = m.logo ? '<img class="brand__logo" src="' + m.logo + '" alt="">' : '<span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>';
+    b.innerHTML = ic + " " + (m.nombre || "Panel de Selección");
+  }
+}
+
 /* ---------- Calificación (igual que el kiosko) ---------- */
 var UMBRALES = { fortaleza: 0.75, promedio: 0.45, bandera: 0.45 };
 function nivelDimObj(pct) { return pct >= UMBRALES.fortaleza ? { label: "Fortaleza", cls: "ok" } : pct >= UMBRALES.promedio ? { label: "Promedio", cls: "warn" } : { label: "Área de oportunidad", cls: "bad" }; }
@@ -658,6 +677,7 @@ function abrirConfig() {
       avisoResp: (cfg && cfg.avisoResponsable) || CONFIG.avisoResponsable || "",
       avisoCont: (cfg && cfg.avisoContacto) || CONFIG.avisoContacto || "",
       umbrales: (cfg && cfg.umbrales) || UMBRALES,
+      marca: (cfg && cfg.marca) || MARCA,
     };
     var pl = ((cfg && Array.isArray(cfg.puestos) && cfg.puestos.length) ? cfg.puestos : PUESTOS).slice();
     _abrirConfigUI(c, pl);
@@ -694,6 +714,20 @@ function _abrirConfigUI(c, pl) {
         <div class="field"><label class="field__label">Promedio desde (%)</label><input class="input" id="cfgUProm" type="number" min="1" max="100" value="${Math.round((c.umbrales.promedio || 0.45) * 100)}"></div>
         <div class="field"><label class="field__label">Bandera si baja de (%)</label><input class="input" id="cfgUBand" type="number" min="1" max="100" value="${Math.round((c.umbrales.bandera || 0.45) * 100)}"></div>
       </div>
+
+      <div class="sec-title">Marca (white-label)</div>
+      <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Pon el logo y el color de la empresa. Se aplican al examen del aspirante y a este panel.</p>
+      <div class="field"><label class="field__label">Nombre de la empresa</label><input class="input" id="cfgMarcaNom" value="${(c.marca.nombre || "").replace(/"/g, "&quot;")}" placeholder="Ej. Grupo Acme"></div>
+      <div class="field"><label class="field__label">Color de marca</label><div class="marca-color"><input type="color" id="cfgMarcaColor" value="${c.marca.color || "#4B4FE6"}"><span class="marca-hex" id="cfgMarcaHex">${c.marca.color || "#4B4FE6"}</span></div></div>
+      <div class="field"><label class="field__label">Logo</label>
+        <div class="marca-logo">
+          <img id="cfgMarcaPrev" class="marca-prev" src="${c.marca.logo || ""}" alt="" ${c.marca.logo ? "" : "hidden"}>
+          <label class="btn btn--sm" for="cfgMarcaFile">Subir logo</label>
+          <input type="file" id="cfgMarcaFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
+          <button type="button" class="btn btn--sm" id="cfgMarcaDel" ${c.marca.logo ? "" : "hidden"}>Quitar</button>
+        </div>
+        <p class="ed-hint">PNG, JPG o SVG, máximo 200 KB. Se ve mejor horizontal.</p>
+      </div>
       <p class="cfg-error" id="cfgErr"></p>
     </div>
     <div class="modal__foot"><button class="btn btn--ghost" data-x>Cancelar</button><button class="btn btn--primary" id="cfgSave">Guardar</button></div>
@@ -718,6 +752,20 @@ function _abrirConfigUI(c, pl) {
   $$("[data-x]", ov).forEach(b => b.addEventListener("click", close));
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
   var _eq = $("#cfgEditQ", ov); if (_eq) _eq.addEventListener("click", abrirEditorPreguntas);
+
+  var logoData = c.marca.logo || "";
+  var fileInp = $("#cfgMarcaFile", ov), prev = $("#cfgMarcaPrev", ov), delLogo = $("#cfgMarcaDel", ov);
+  var colInp = $("#cfgMarcaColor", ov), hexEl = $("#cfgMarcaHex", ov);
+  colInp.addEventListener("input", () => { hexEl.textContent = colInp.value; });
+  fileInp.addEventListener("change", () => {
+    const f = fileInp.files && fileInp.files[0]; if (!f) return;
+    if (f.size > 200 * 1024) { $("#cfgErr", ov).textContent = "El logo pesa más de 200 KB. Usa uno más ligero."; fileInp.value = ""; return; }
+    const rd = new FileReader();
+    rd.onload = () => { logoData = rd.result; prev.src = logoData; prev.hidden = false; delLogo.hidden = false; $("#cfgErr", ov).textContent = ""; };
+    rd.readAsDataURL(f);
+  });
+  delLogo.addEventListener("click", () => { logoData = ""; prev.src = ""; prev.hidden = true; delLogo.hidden = true; fileInp.value = ""; });
+
   $("#cfgSave", ov).addEventListener("click", () => {
     const tit = $("#cfgTit", ov).value.trim(), cue = $("#cfgCue", ov).value.trim();
     const resp = $("#cfgResp", ov).value.trim(), cont = $("#cfgCont", ov).value.trim();
@@ -727,8 +775,9 @@ function _abrirConfigUI(c, pl) {
     if ([uf, up, ub].some(x => isNaN(x) || x < 1 || x > 100)) { $("#cfgErr", ov).textContent = "Los umbrales deben ser porcentajes entre 1 y 100."; return; }
     if (up >= uf) { $("#cfgErr", ov).textContent = "El umbral de Promedio debe ser menor que el de Fortaleza."; return; }
     const umbrales = { fortaleza: uf / 100, promedio: up / 100, bandera: ub / 100 };
-    window.Store.guardarConfig({ mensajeFinTitulo: tit, mensajeFinCuerpo: cue, puestos: pl, avisoResponsable: resp, avisoContacto: cont, umbrales: umbrales })
-      .then(function () { Object.assign(UMBRALES, umbrales); close(); toast("Configuración guardada."); renderApp(); })
+    const marca = { nombre: $("#cfgMarcaNom", ov).value.trim(), logo: logoData, color: colInp.value };
+    window.Store.guardarConfig({ mensajeFinTitulo: tit, mensajeFinCuerpo: cue, puestos: pl, avisoResponsable: resp, avisoContacto: cont, umbrales: umbrales, marca: marca })
+      .then(function () { Object.assign(UMBRALES, umbrales); aplicarMarcaPanel(marca); close(); toast("Configuración guardada."); renderApp(); })
       .catch(function () { $("#cfgErr", ov).textContent = "No se pudo guardar."; });
   });
 }
@@ -854,7 +903,7 @@ function applyTheme(t) {
   $("#iconSun").style.display = t === "dark" ? "block" : "none";
   try { localStorage.setItem("examenrh-theme", t); } catch (e) {}
 }
-function bootApp() { $("#login").style.display = "none"; $("#app").classList.add("is-on"); $("#hdrName").textContent = "Recursos Humanos"; window.Store.leerConfig().then(function (cfg) { if (cfg && cfg.umbrales) Object.assign(UMBRALES, cfg.umbrales); }).catch(function () {}).then(function () { renderApp(); }); }
+function bootApp() { $("#login").style.display = "none"; $("#app").classList.add("is-on"); $("#hdrName").textContent = "Recursos Humanos"; window.Store.leerConfig().then(function (cfg) { if (cfg) { if (cfg.umbrales) Object.assign(UMBRALES, cfg.umbrales); if (cfg.marca) aplicarMarcaPanel(cfg.marca); } }).catch(function () {}).then(function () { renderApp(); }); }
 
 document.addEventListener("DOMContentLoaded", () => {
   try { applyTheme(localStorage.getItem("examenrh-theme") || "light"); } catch (e) { applyTheme("light"); }

@@ -87,17 +87,37 @@ function setProgreso(pct, txt) {
   $("#kprogress").style.visibility = pct > 0 && pct < 1 ? "visible" : "hidden";
 }
 
+function aplicarColor(hex) {
+  if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  const s = document.documentElement.style;
+  s.setProperty("--accent", hex); s.setProperty("--accent-2", hex); s.setProperty("--accent-soft", `rgba(${r},${g},${b},.14)`);
+}
+function aplicarMarca(m) {
+  if (!m) return;
+  window.__MARCA = m;
+  if (m.color) aplicarColor(m.color);
+  const b = document.getElementById("kioskBrand");
+  if (b) {
+    const ic = m.logo ? `<img class="brand__logo" src="${m.logo}" alt="">` : `<span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>`;
+    b.innerHTML = ic + " " + (m.nombre || "Evalua RH");
+  }
+}
 function renderBienvenida() {
   setProgreso(0, "");
+  const M = window.__MARCA || {};
+  const marca = M.logo
+    ? `<img class="welcome__logo" src="${M.logo}" alt="">`
+    : `<div class="welcome__mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>`;
   $("#stage").innerHTML = `
     <div class="screen screen--center">
       <div class="welcome">
-        <div class="welcome__mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+        ${marca}
         <h1 class="welcome__title">${CONFIG.titulo}</h1>
         <p class="welcome__sub">Bienvenido(a). Esta evaluación toma alrededor de 10 minutos. Solo toca la opción que mejor te describa — la mayoría de preguntas no tienen respuesta correcta o incorrecta.</p>
         <label class="consent" for="consent"><input type="checkbox" id="consent"><span>He leído y acepto el <button type="button" class="linklike" id="verAviso">aviso de privacidad</button>.</span></label>
         <button class="btn btn--xl btn--primary" id="goStart" disabled>Comenzar</button>
-        <p class="welcome__foot">${CONFIG.empresa} · Recursos Humanos</p>
+        <p class="welcome__foot">${(M.nombre || CONFIG.empresa)} · Recursos Humanos</p>
       </div>
     </div>`;
   const cb = $("#consent"), gs = $("#goStart");
@@ -617,6 +637,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (cfg.avisoContacto) CONFIG.avisoContacto = cfg.avisoContacto;
     if (Array.isArray(cfg.puestos) && cfg.puestos.length) window.__PUESTOS_REMOTOS = cfg.puestos;
     if (cfg.umbrales) Object.assign(UMBRALES, cfg.umbrales);
+    if (cfg.marca) { aplicarMarca(cfg.marca); if (state.fase === "bienvenida") render(); }
   }).catch(function () {});
   window.Store.leerPreguntas().then(function (lista) {
     if (Array.isArray(lista) && lista.length) window.__PREGUNTAS_REMOTAS = lista;

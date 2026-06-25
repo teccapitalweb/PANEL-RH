@@ -376,3 +376,11 @@ tbody tr:last-child td { border-bottom: none; }
 .cmp-axis { stroke: color-mix(in srgb, var(--muted) 45%, transparent); stroke-width: 1.2; }
 .cmp-ylabel, .cmp-glabel { fill: var(--muted); font-size: 10px; font-family: var(--font-display); }
 .cmp-vlabel { fill: var(--faint); font-size: 8.5px; font-weight: 600; }
+
+/* ---------- White-label (marca) ---------- */
+.brand__logo { height: 26px; width: auto; max-width: 130px; object-fit: contain; border-radius: 6px; vertical-align: middle; }
+.marca-color { display: flex; align-items: center; gap: 10px; }
+.marca-color input[type="color"] { width: 46px; height: 34px; padding: 2px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); cursor: pointer; }
+.marca-hex { font-family: var(--font-mono); font-size: .84rem; color: var(--muted); text-transform: uppercase; }
+.marca-logo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.marca-prev { height: 42px; max-width: 150px; object-fit: contain; border: 1px solid var(--border); border-radius: 9px; padding: 5px; background: var(--surface); }
