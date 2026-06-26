@@ -754,6 +754,7 @@ function abrirConfig() {
       avisoCont: (cfg && cfg.avisoContacto) || CONFIG.avisoContacto || "",
       umbrales: (cfg && cfg.umbrales) || UMBRALES,
       marca: (cfg && cfg.marca) || MARCA,
+      modo: (cfg && cfg.modoExamen) || "rapida",
     };
     var pl = ((cfg && Array.isArray(cfg.puestos) && cfg.puestos.length) ? cfg.puestos : PUESTOS).slice();
     _abrirConfigUI(c, pl);
@@ -764,7 +765,20 @@ function _abrirConfigUI(c, pl) {
   ov.innerHTML = `<div class="modal">
     <div class="modal__head"><h3>Configuración</h3><button class="icon-btn" data-x><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
     <div class="modal__body">
-      <div class="sec-title" style="margin-top:0">Preguntas del examen</div>
+      <div class="sec-title" style="margin-top:0">Modo de evaluación</div>
+      <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Elige cómo contestan los aspirantes. Puedes cambiarlo cuando quieras.</p>
+      <div class="modo-seg" id="cfgModo">
+        <button type="button" class="modo-opt ${c.modo === "rapida" ? "is-on" : ""}" data-modo="rapida">
+          <span class="modo-opt__t">Contratación rápida</span>
+          <span class="modo-opt__d">Todas las preguntas de corrido, en una sola sesión.</span>
+        </button>
+        <button type="button" class="modo-opt ${c.modo === "fases" ? "is-on" : ""}" data-modo="fases">
+          <span class="modo-opt__t">Por fases</span>
+          <span class="modo-opt__d">Una fase por sesión; al terminar cada fase se detiene para evaluarla antes de seguir.</span>
+        </button>
+      </div>
+
+      <div class="sec-title">Preguntas del examen</div>
       <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Agrega, edita o quita las preguntas del banco general sin tocar código. Los espejos y las del puesto se administran aparte.</p>
       <button class="btn btn--sm" id="cfgEditQ" style="margin-bottom:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>Editar preguntas</button>
 
@@ -829,6 +843,11 @@ function _abrirConfigUI(c, pl) {
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
   var _eq = $("#cfgEditQ", ov); if (_eq) _eq.addEventListener("click", abrirEditorPreguntas);
 
+  var modoSel = c.modo || "rapida";
+  $$("#cfgModo .modo-opt", ov).forEach(b => b.addEventListener("click", () => {
+    modoSel = b.dataset.modo;
+    $$("#cfgModo .modo-opt", ov).forEach(x => x.classList.toggle("is-on", x === b));
+  }));
   var logoData = c.marca.logo || "";
   var fileInp = $("#cfgMarcaFile", ov), prev = $("#cfgMarcaPrev", ov), delLogo = $("#cfgMarcaDel", ov);
   var colInp = $("#cfgMarcaColor", ov), hexEl = $("#cfgMarcaHex", ov);
@@ -852,7 +871,7 @@ function _abrirConfigUI(c, pl) {
     if (up >= uf) { $("#cfgErr", ov).textContent = "El umbral de Promedio debe ser menor que el de Fortaleza."; return; }
     const umbrales = { fortaleza: uf / 100, promedio: up / 100, bandera: ub / 100 };
     const marca = { nombre: $("#cfgMarcaNom", ov).value.trim(), logo: logoData, color: colInp.value };
-    window.Store.guardarConfig({ mensajeFinTitulo: tit, mensajeFinCuerpo: cue, puestos: pl, avisoResponsable: resp, avisoContacto: cont, umbrales: umbrales, marca: marca })
+    window.Store.guardarConfig({ mensajeFinTitulo: tit, mensajeFinCuerpo: cue, puestos: pl, avisoResponsable: resp, avisoContacto: cont, umbrales: umbrales, marca: marca, modoExamen: modoSel })
       .then(function () { Object.assign(UMBRALES, umbrales); aplicarMarcaPanel(marca); close(); toast("Configuración guardada."); renderApp(); })
       .catch(function () { $("#cfgErr", ov).textContent = "No se pudo guardar."; });
   });

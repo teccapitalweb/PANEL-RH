@@ -225,7 +225,9 @@ function renderInstrucciones() {
       </div>
     </div>`;
   $("#goExam").addEventListener("click", () => {
-    state.preguntas = construirExamen(state.datos.puesto);
+    const ex = construirExamen(state.datos.puesto);
+    // Rápida = todo de corrido (sin pantallas de fase). Por fases = conserva las transiciones.
+    state.preguntas = (MODO_EXAMEN === "fases") ? ex : ex.filter(x => !x.__intro);
     state.fase = "examen"; state.qIdx = 0; render();
   });
 }
@@ -277,6 +279,7 @@ const ETAPAS = [
 const FASE_DIM = { perfil: 1, personalidad: 2, social: 2, intelecto: 3, juicio: 3, servicio: 4, estres: 4, logistica: 4, honestidad: 4, psicosocial: 4, entrevista: 4, puesto: 4, control: 4 };
 function faseDeDim(d) { return FASE_DIM[d] || 4; }
 function faseInfo(n) { return ETAPAS.find(f => f.n === n) || ETAPAS[ETAPAS.length - 1]; }
+var MODO_EXAMEN = "rapida"; // "rapida" = todo de corrido · "fases" = una fase por sesión (frena al terminar cada fase)
 
 function construirExamen(puesto) {
   const BANCO = bancoPreguntas();
@@ -333,7 +336,8 @@ function renderPregunta() {
   if (q.__intro) return renderFaseIntro(q.fase, hechas / (totalReales + 1));
   state.qStart = Date.now();
   const tag = q.tag || DIMENSIONES[q.dim] || "";
-  setProgreso((hechas + 1) / (totalReales + 1), faseInfo(q.__fase).titulo);
+  const hayFases = lista.some(x => x.__intro);
+  setProgreso((hechas + 1) / (totalReales + 1), hayFases ? faseInfo(q.__fase).titulo : `Pregunta ${hechas + 1} de ${totalReales}`);
   const prev = state.respuestas[q.id];
   if (q.tipo === "abierta") return renderAbierta(q, tag, prev);
   const orden = q.__ord || q.opciones.map((_, i) => i);
@@ -412,8 +416,28 @@ function renderAbierta(q, tag, prev) {
 }
 function avanzarPregunta() {
   const lista = state.preguntas && state.preguntas.length ? state.preguntas : PREGUNTAS;
+  const sig = lista[state.qIdx + 1];
+  // Modo "Por fases": al terminar una fase (lo que sigue es otra fase o ya no hay más), frena la sesión.
+  if (MODO_EXAMEN === "fases" && (!sig || sig.__intro)) {
+    const faseActual = (lista[state.qIdx] && lista[state.qIdx].__fase) || 1;
+    guardarProgreso();
+    return renderPausaFase(faseActual);
+  }
   if (state.qIdx < lista.length - 1) { state.qIdx++; } else { state.fase = "reaccion"; }
   guardarProgreso(); render();
+}
+function renderPausaFase(faseN) {
+  setProgreso(0, "");
+  $("#stage").innerHTML = `
+    <div class="screen screen--center">
+      <div class="welcome welcome--done">
+        <div class="done-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <div class="welcome__badge">Fase ${faseN} de ${TOTAL_FASES} completada</div>
+        <h1 class="welcome__title">¡Listo! Terminaste esta fase</h1>
+        <p class="welcome__sub">Gracias por tu tiempo y por compartir tus respuestas con nosotros. Nuestro equipo las revisará y te avisaremos muy pronto sobre los siguientes pasos.</p>
+        <p class="pausa-hint">Ya puedes cerrar esta ventana.</p>
+      </div>
+    </div>`;
 }
 
 /* ---------- Prueba de atención / reacción ---------- */
@@ -686,6 +710,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (cfg.avisoContacto) CONFIG.avisoContacto = cfg.avisoContacto;
     if (Array.isArray(cfg.puestos) && cfg.puestos.length) window.__PUESTOS_REMOTOS = cfg.puestos;
     if (cfg.umbrales) Object.assign(UMBRALES, cfg.umbrales);
+    if (cfg.modoExamen) MODO_EXAMEN = cfg.modoExamen;
     if (cfg.marca) { aplicarMarca(cfg.marca); if (state.fase === "bienvenida") render(); }
   }).catch(function () {});
   window.Store.leerPreguntas().then(function (lista) {

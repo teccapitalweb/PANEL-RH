@@ -365,6 +365,14 @@ tbody tr:last-child td { border-bottom: none; }
 
 /* ---------- Umbrales en config ---------- */
 .umb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 4px; }
+.modo-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
+.modo-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 14px 15px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--surface); cursor: pointer; transition: border-color .15s, background .15s, box-shadow .15s; }
+.modo-opt:hover { border-color: var(--accent); }
+.modo-opt.is-on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+.modo-opt__t { font-family: var(--font-display); font-weight: 600; font-size: .94rem; color: var(--text); }
+.modo-opt.is-on .modo-opt__t { color: var(--accent); }
+.modo-opt__d { font-size: .8rem; color: var(--muted); line-height: 1.4; }
+@media (max-width: 480px) { .modo-seg { grid-template-columns: 1fr; } }
 
 /* ---------- Gráfico de barras agrupadas (comparador) ---------- */
 .cmp-legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 8px 0 14px; }
