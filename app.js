@@ -265,28 +265,75 @@ function intercalar(cuerpo, extras) {
   return out;
 }
 function bancoPreguntas() { return (window.__PREGUNTAS_REMOTAS && window.__PREGUNTAS_REMOTAS.length) ? window.__PREGUNTAS_REMOTAS : PREGUNTAS; }
+
+/* ---------- Fases del examen ---------- */
+const TOTAL_FASES = 5; // 4 de preguntas + la ronda de reacción
+const ETAPAS = [
+  { n: 1, titulo: "Sobre ti", desc: "Empecemos por conocerte un poco." },
+  { n: 2, titulo: "Tu forma de ser", desc: "Cómo te relacionas y trabajas con los demás." },
+  { n: 3, titulo: "Cómo piensas y decides", desc: "Un par de retos de razonamiento y criterio." },
+  { n: 4, titulo: "En el trabajo", desc: "Tu manera de actuar en el día a día." },
+];
+const FASE_DIM = { perfil: 1, personalidad: 2, social: 2, intelecto: 3, juicio: 3, servicio: 4, estres: 4, logistica: 4, honestidad: 4, psicosocial: 4, entrevista: 4, puesto: 4, control: 4 };
+function faseDeDim(d) { return FASE_DIM[d] || 4; }
+function faseInfo(n) { return ETAPAS.find(f => f.n === n) || ETAPAS[ETAPAS.length - 1]; }
+
 function construirExamen(puesto) {
   const BANCO = bancoPreguntas();
   const rol = (typeof PREGUNTAS_PUESTO !== "undefined" && PREGUNTAS_PUESTO[puesto]) || [];
-  // 1) Las "Sobre ti" iniciales se quedan al principio, sin interrumpir (conocer al aspirante primero).
-  let i = 0; while (i < BANCO.length && BANCO[i].dim === "perfil") i++;
-  const intro = BANCO.slice(0, i);
-  const cuerpo = BANCO.slice(i);
-  // 2) Trampas y espejos se intercalan dentro del cuerpo (no al final, pares separados).
-  const cuerpoX = intercalar(cuerpo, ordenarExtras());
-  // 3) Orden final: Sobre ti → resto del banco (en su orden) → preguntas del puesto.
-  const orden = intro.concat(cuerpoX, rol);
-  // 4) Solo se barajan las OPCIONES dentro de cada pregunta (anti-copia), no el orden.
-  return orden.map(q => { const nq = Object.assign({}, q); if (nq.opciones) nq.__ord = ordenOpciones(nq); return nq; });
+  // 1) Banco general agrupado por fase (conserva su orden; "Sobre ti" queda en la fase 1).
+  const porFase = { 1: [], 2: [], 3: [], 4: [] };
+  BANCO.forEach(q => { porFase[faseDeDim(q.dim)].push(q); });
+  // 2) Espejos: cada par reparte sus mitades en fases distintas, así quedan separadas.
+  const espP = (typeof ESPEJO_PREGUNTAS !== "undefined" ? ESPEJO_PREGUNTAS : []);
+  const pares = (typeof ESPEJOS !== "undefined" ? ESPEJOS : []);
+  const byId = {}; espP.forEach(q => { byId[q.id] = q; });
+  const espFase = { 2: [], 3: [], 4: [] };
+  pares.forEach((p, k) => {
+    const a = byId[p.a], b = byId[p.b];
+    if (a) espFase[[2, 3, 4][k % 3]].push(a);
+    if (b) espFase[[2, 3, 4][(k + 1) % 3]].push(b);
+  });
+  // 3) Ensamblar: fase 1 sin intro (va tras "tus datos"); fases 2-4 con pantalla de transición.
+  //    Las preguntas del puesto cierran la fase 4. Los espejos se intercalan dentro de su fase.
+  const lista = [];
+  [1, 2, 3, 4].forEach(f => {
+    let reales = porFase[f].slice();
+    if (f === 4) reales = reales.concat(rol);
+    const esp = espFase[f] || [];
+    if (!reales.length && !esp.length) return; // fase vacía: se omite
+    const qs = (f === 1) ? reales : intercalar(reales, esp);
+    if (f !== 1) lista.push({ __intro: true, fase: f });
+    qs.forEach(q => { const nq = Object.assign({}, q); if (nq.opciones) nq.__ord = ordenOpciones(nq); nq.__fase = f; lista.push(nq); });
+  });
+  return lista;
 }
 
+function renderFaseIntro(faseN, pct) {
+  const fi = faseInfo(faseN);
+  setProgreso(pct, `Fase ${faseN} de ${TOTAL_FASES}`);
+  $("#stage").innerHTML = `
+    <div class="screen screen--center">
+      <div class="welcome">
+        <div class="welcome__badge">Fase ${faseN} de ${TOTAL_FASES}</div>
+        <h1 class="welcome__title">${fi.titulo}</h1>
+        <p class="welcome__sub">${fi.desc}</p>
+        <button class="btn btn--xl btn--primary" id="faseGo">Continuar</button>
+        <button class="btn btn--ghost" id="faseBack" style="margin-top:10px">Anterior</button>
+      </div>
+    </div>`;
+  $("#faseGo").addEventListener("click", () => avanzarPregunta());
+  $("#faseBack").addEventListener("click", () => { if (state.qIdx === 0) { state.fase = "instrucciones"; } else { state.qIdx--; } render(); });
+}
 function renderPregunta() {
   const lista = state.preguntas && state.preguntas.length ? state.preguntas : PREGUNTAS;
-  const total = lista.length;
   const q = lista[state.qIdx];
+  const totalReales = lista.filter(x => !x.__intro).length;
+  const hechas = lista.slice(0, state.qIdx).filter(x => !x.__intro).length;
+  if (q.__intro) return renderFaseIntro(q.fase, hechas / (totalReales + 1));
   state.qStart = Date.now();
   const tag = q.tag || DIMENSIONES[q.dim] || "";
-  setProgreso((state.qIdx + 1) / (total + 1), `Pregunta ${state.qIdx + 1} de ${total}`);
+  setProgreso((hechas + 1) / (totalReales + 1), faseInfo(q.__fase).titulo);
   const prev = state.respuestas[q.id];
   if (q.tipo === "abierta") return renderAbierta(q, tag, prev);
   const orden = q.__ord || q.opciones.map((_, i) => i);
@@ -525,7 +572,9 @@ function arrancar(invToken) {
   } else seguir();
 }
 function renderReanudar(p) {
-  var ctx = (p.fase === "examen" && p.preguntas) ? `Vas en la pregunta ${(p.qIdx || 0) + 1} de ${p.preguntas.length}.` : "Dejaste un examen a medias.";
+  var reales = (p.preguntas || []).filter(x => !x.__intro);
+  var pos = Math.min((p.preguntas || []).slice(0, p.qIdx || 0).filter(x => !x.__intro).length + 1, reales.length);
+  var ctx = (p.fase === "examen" && reales.length) ? `Vas en la pregunta ${pos} de ${reales.length}.` : "Dejaste un examen a medias.";
   if (p.datos && p.datos.puesto) ctx = `Puesto: ${p.datos.puesto}. ` + ctx;
   $("#stage").innerHTML = `
     <div class="screen screen--center">
