@@ -147,6 +147,18 @@ const ORDEN_ESTADOS = ["nuevo", "evaluado", "entrevista", "contratado", "descart
 function estadoDe(a) { return a.estado || ({ contratar: "contratado", descartar: "descartado", revision: "evaluado" }[a.decision]) || "nuevo"; }
 
 function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); requestAnimationFrame(() => t.classList.add("is-on")); setTimeout(() => { t.classList.remove("is-on"); setTimeout(() => t.remove(), 300); }, 2400); }
+function toastUndo(msg, onUndo, ms) {
+  const t = document.createElement("div"); t.className = "toast toast--undo";
+  const span = document.createElement("span"); span.textContent = msg;
+  const btn = document.createElement("button"); btn.className = "toast__undo"; btn.type = "button"; btn.textContent = "Deshacer";
+  t.appendChild(span); t.appendChild(btn); document.body.appendChild(t);
+  requestAnimationFrame(() => t.classList.add("is-on"));
+  let done = false;
+  const cerrar = () => { if (done) return; done = true; t.classList.remove("is-on"); setTimeout(() => t.remove(), 300); };
+  const timer = setTimeout(cerrar, ms || 7000);
+  btn.addEventListener("click", () => { clearTimeout(timer); cerrar(); if (typeof onUndo === "function") onUndo(); });
+  return t;
+}
 
 /* ---------- Lista ---------- */
 function navTabs() {
@@ -228,11 +240,26 @@ function _renderFasesUI(arr) {
   $$("[data-del]").forEach(b => b.addEventListener("click", () => eliminarCF(b.dataset.del)));
 }
 function autorizarFaseCF(token, next) {
-  window.Store.actualizarCandidatoFases(token, { faseActual: next }).then(function () { toast(`Fase ${next} habilitada.`); renderFasesView(); }).catch(function () { toast("No se pudo autorizar."); });
+  window.Store.leerCandidatoFases(token).then(function (cf) {
+    const prev = (cf && cf.faseActual) || (next - 1);
+    window.Store.actualizarCandidatoFases(token, { faseActual: next }).then(function () {
+      renderFasesView();
+      toastUndo(`Fase ${next} habilitada.`, function () {
+        window.Store.actualizarCandidatoFases(token, { faseActual: prev }).then(function () { toast("Autorización revertida."); renderFasesView(); });
+      });
+    }).catch(function () { toast("No se pudo autorizar."); });
+  });
 }
 function eliminarCF(token) {
-  if (!confirm("¿Eliminar este candidato por fases? Se borran sus respuestas.")) return;
-  window.Store.eliminarCandidatoFases(token).then(function () { toast("Candidato eliminado."); renderFasesView(); }).catch(function () {});
+  window.Store.leerCandidatoFases(token).then(function (cf) {
+    if (!cf) return;
+    window.Store.eliminarCandidatoFases(token).then(function () {
+      renderFasesView();
+      toastUndo("Candidato eliminado.", function () {
+        window.Store.crearCandidatoFases(cf).then(function () { toast("Candidato restaurado."); renderFasesView(); });
+      });
+    }).catch(function () { toast("No se pudo eliminar."); });
+  });
 }
 function verResultadoCF(token) {
   window.Store.leerCandidatoFases(token).then(function (cf) {

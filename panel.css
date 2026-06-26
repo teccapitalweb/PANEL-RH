@@ -193,6 +193,9 @@ tbody tr:last-child td { border-bottom: none; }
 /* Toast */
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 16px); z-index: 200; padding: 12px 18px; border-radius: var(--r-md); background: var(--text); color: var(--bg); font-size: .86rem; font-weight: 500; box-shadow: var(--shadow-lg); opacity: 0; transition: all .3s; }
 .toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+.toast--undo { display: flex; align-items: center; gap: 14px; padding-right: 8px; }
+.toast__undo { appearance: none; border: 0; background: transparent; color: var(--accent); font-family: var(--font-display); font-weight: 700; font-size: .84rem; padding: 6px 12px; border-radius: var(--r-sm); cursor: pointer; white-space: nowrap; transition: background .15s; }
+.toast__undo:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 
 /* ---------- Etiquetas editables (puestos) ---------- */
 .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
