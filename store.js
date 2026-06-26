@@ -77,6 +77,29 @@
       if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("config").doc("preguntas").set({ lista: lista });
       lsSet("examenrh_preguntas", lista); return Promise.resolve();
     },
+    /* ----- Candidatos por fases (embudo multi-sesión, apartado aparte) ----- */
+    crearCandidatoFases: function (cf) {
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("candidatosFases").doc(cf.token).set(cf).then(function () { return cf; });
+      var m = lsGet("examenrh_fases", {}); m[cf.token] = cf; lsSet("examenrh_fases", m); return Promise.resolve(cf);
+    },
+    leerCandidatoFases: function (token) {
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("candidatosFases").doc(token).get().then(function (s) { return s.exists ? s.data() : null; });
+      var m = lsGet("examenrh_fases", {}); return Promise.resolve(m[token] || null);
+    },
+    leerCandidatosFases: function () {
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("candidatosFases").orderBy("creada", "desc").get().then(function (s) { return s.docs.map(function (d) { return d.data(); }); });
+      var m = lsGet("examenrh_fases", {}); return Promise.resolve(Object.keys(m).map(function (k) { return m[k]; }).sort(function (a, b) { return (a.creada || "") < (b.creada || "") ? 1 : -1; }));
+    },
+    actualizarCandidatoFases: function (token, patch) {
+      patch = Object.assign({ actualizada: new Date().toISOString() }, patch);
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("candidatosFases").doc(token).set(patch, { merge: true });
+      var m = lsGet("examenrh_fases", {}); if (m[token]) { Object.assign(m[token], patch); lsSet("examenrh_fases", m); } return Promise.resolve();
+    },
+    eliminarCandidatoFases: function (token) {
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("candidatosFases").doc(token).delete();
+      var m = lsGet("examenrh_fases", {}); delete m[token]; lsSet("examenrh_fases", m); return Promise.resolve();
+    },
+
     login: function (email, pass) { if (on()) return window.auth.signInWithEmailAndPassword(email, pass); return Promise.reject(new Error("demo")); },
     logout: function () { if (on() && window.auth) return window.auth.signOut(); return Promise.resolve(); },
   };

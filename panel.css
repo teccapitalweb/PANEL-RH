@@ -426,3 +426,48 @@ tbody tr:last-child td { border-bottom: none; }
 #printRoot .prc-table th, #printRoot .prc-table td { padding: 5px 8px; text-align: center; border-bottom: 1px solid #e6e8ee; }
 #printRoot .prc-table thead th { background: #f4f5f8; color: #1c2230; }
 #printRoot .prc-table tbody th { text-align: left; color: #5b6270; font-weight: 600; }
+
+/* ===== Pestañas de vista (Aspirantes / Por fases) ===== */
+.vtabs { display: flex; gap: 6px; margin-bottom: 18px; background: var(--glass); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 5px; width: fit-content; }
+.vtab { appearance: none; border: 0; background: transparent; color: var(--muted); font-family: var(--font-display); font-weight: 600; font-size: 14px; padding: 9px 18px; border-radius: var(--r-md); cursor: pointer; transition: background .18s, color .18s; }
+.vtab:hover { color: var(--text); }
+.vtab.is-on { background: var(--accent); color: #fff; box-shadow: var(--glow); }
+
+/* ===== Apartado por fases ===== */
+.cf-list { display: flex; flex-direction: column; gap: 14px; }
+.cf-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 18px 20px; box-shadow: var(--shadow); }
+.cf-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.cf-card__name { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--text); }
+.cf-card__sub { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.cf-card__prog { flex-shrink: 0; font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 4px 11px; white-space: nowrap; }
+
+.cf-steps { display: flex; gap: 6px; margin-bottom: 14px; }
+.cf-step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; position: relative; }
+.cf-step::before { content: ""; position: absolute; top: 13px; left: -50%; width: 100%; height: 2px; background: var(--border); z-index: 0; }
+.cf-step:first-child::before { display: none; }
+.cf-step__n { position: relative; z-index: 1; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-size: 12px; font-weight: 700; background: var(--bg); border: 2px solid var(--border); color: var(--muted); transition: all .18s; }
+.cf-step__l { font-size: 10.5px; line-height: 1.25; color: var(--muted); max-width: 92px; }
+.cf-step--done .cf-step__n { background: var(--good); border-color: var(--good); color: #fff; }
+.cf-step--done::before { background: var(--good); }
+.cf-step--current .cf-step__n { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 0 0 4px var(--accent-soft); }
+.cf-step--current .cf-step__l { color: var(--text); font-weight: 600; }
+.cf-step--locked .cf-step__n { opacity: .65; }
+
+.cf-card__estado { font-size: 13.5px; color: var(--muted); line-height: 1.5; margin-bottom: 14px; }
+.cf-card__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cf-del:hover { color: var(--bad); border-color: var(--bad); }
+
+.cf-badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; margin-right: 4px; background: var(--glass); color: var(--muted); border: 1px solid var(--border); }
+.cf-badge--ok { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); border-color: transparent; }
+.cf-badge--warn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); border-color: transparent; }
+.cf-badge--info { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+.cf-resp { max-height: 64vh; overflow-y: auto; margin-top: 8px; }
+.inv-linkrow { display: flex; gap: 8px; align-items: center; }
+.inv-linkrow .input { flex: 1; font-family: var(--font-mono); font-size: 12.5px; }
+
+@media (max-width: 600px) {
+  .vtabs { width: 100%; }
+  .vtab { flex: 1; text-align: center; padding: 9px 8px; }
+  .cf-step__l { display: none; }
+}

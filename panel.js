@@ -134,7 +134,7 @@ function configActual() {
 }
 
 /* ---------- Estado ---------- */
-const state = { aspirantes: [], demo: false, busqueda: "", puesto: "Todos", orden: "score", estado: "Todos", comparar: [] };
+const state = { aspirantes: [], demo: false, busqueda: "", puesto: "Todos", orden: "score", estado: "Todos", comparar: [], vista: "aspirantes" };
 const DEC = { contratar: { t: "Contratar", cls: "ok" }, revision: { t: "En revisión", cls: "warn" }, descartar: { t: "Descartar", cls: "bad" } };
 const ESTADOS = {
   nuevo: { t: "Nuevo", cls: "muted" },
@@ -149,14 +149,155 @@ function estadoDe(a) { return a.estado || ({ contratar: "contratado", descartar:
 function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); requestAnimationFrame(() => t.classList.add("is-on")); setTimeout(() => { t.classList.remove("is-on"); setTimeout(() => t.remove(), 300); }, 2400); }
 
 /* ---------- Lista ---------- */
+function navTabs() {
+  return `<div class="vtabs">
+    <button class="vtab ${state.vista !== "fases" ? "is-on" : ""}" data-v="aspirantes">Aspirantes</button>
+    <button class="vtab ${state.vista === "fases" ? "is-on" : ""}" data-v="fases">Evaluación por fases</button>
+  </div>`;
+}
+function wireTabs() {
+  $$(".vtab").forEach(b => b.addEventListener("click", () => { if (state.vista === b.dataset.v) return; state.vista = b.dataset.v; renderApp(); }));
+}
 function renderApp() {
+  if (state.vista === "fases") return renderFasesView();
   $("#wrap").innerHTML = '<div class="page-head"><p style="color:var(--muted)">Cargando aspirantes…</p></div>';
   cargar().then(function (d) { state.aspirantes = d.arr; state.demo = d.demo; _renderAppUI(); })
     .catch(function () { $("#wrap").innerHTML = '<div class="page-head"><p>No se pudieron cargar los aspirantes.</p></div>'; });
 }
+
+/* ---------- Apartado "Evaluación por fases" (embudo multi-sesión) ---------- */
+const FASES_NOM = ["Sobre ti", "Tu forma de ser", "Cómo piensas y decides", "En el trabajo", "Tu reacción"];
+const FASE_DIM_P = { perfil: 1, personalidad: 2, social: 2, intelecto: 3, juicio: 3, servicio: 4, estres: 4, logistica: 4, honestidad: 4, psicosocial: 4, entrevista: 4, puesto: 4, control: 4 };
+function copiarTexto(txt) {
+  const done = () => toast("Enlace copiado.");
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done).catch(done);
+  else { try { const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); done(); } catch (e) {} }
+}
+function renderFasesView() {
+  $("#wrap").innerHTML = `${navTabs()}<div class="page-head"><h1>Evaluación por fases</h1><p style="color:var(--muted)">Cargando candidatos…</p></div>`;
+  wireTabs();
+  window.Store.leerCandidatosFases().then(function (arr) { _renderFasesUI(arr || []); }).catch(function () { _renderFasesUI([]); });
+}
+function _renderFasesUI(arr) {
+  const card = (cf) => {
+    const fc = cf.faseCompletada || 0, fa = cf.faseActual || 1, fin = cf.estado === "finalizado";
+    const steps = [1, 2, 3, 4, 5].map(n => {
+      let cls = "locked";
+      if (fin || n <= fc) cls = "done"; else if (n === fa) cls = "current";
+      return `<div class="cf-step cf-step--${cls}" title="Fase ${n}: ${FASES_NOM[n - 1]}"><span class="cf-step__n">${n}</span><span class="cf-step__l">${FASES_NOM[n - 1]}</span></div>`;
+    }).join("");
+    let estadoTxt, accion = "";
+    if (fin) {
+      estadoTxt = `<span class="cf-badge cf-badge--ok">Finalizado</span> Evaluación completa.`;
+      accion = `<button class="btn btn--sm btn--primary" data-ver="${cf.token}">Ver resultado</button>`;
+    } else if (fc >= fa && fc < 5) {
+      estadoTxt = `<span class="cf-badge cf-badge--warn">Por revisar</span> Terminó la Fase ${fc}. Revisa sus respuestas y autoriza la siguiente.`;
+      accion = `<button class="btn btn--sm btn--primary" data-aut="${cf.token}" data-next="${fc + 1}">Autorizar Fase ${fc + 1}</button><button class="btn btn--sm" data-resp="${cf.token}">Ver respuestas</button>`;
+    } else {
+      estadoTxt = fc === 0 ? `<span class="cf-badge">Sin empezar</span> Aún no contesta la Fase 1.` : `<span class="cf-badge cf-badge--info">En curso</span> Contestando la Fase ${fa}.`;
+      accion = fc > 0 ? `<button class="btn btn--sm" data-resp="${cf.token}">Ver respuestas</button>` : "";
+    }
+    const link = linkBase() + "?inv=" + cf.token;
+    const faseMostrar = fin ? 5 : fc;
+    return `<div class="cf-card">
+      <div class="cf-card__head">
+        <div><div class="cf-card__name">${cf.nombre || "Sin nombre"}</div><div class="cf-card__sub">${cf.puesto || "Sin puesto"} · ${fechaLarga(cf.creada)}</div></div>
+        <div class="cf-card__prog">Fase ${faseMostrar} de 5</div>
+      </div>
+      <div class="cf-steps">${steps}</div>
+      <div class="cf-card__estado">${estadoTxt}</div>
+      <div class="cf-card__actions">${accion}<button class="btn btn--sm btn--ghost" data-copy="${link}">Copiar enlace</button><button class="btn btn--sm btn--ghost cf-del" data-del="${cf.token}">Eliminar</button></div>
+    </div>`;
+  };
+  const demo = !window.Store.on;
+  $("#wrap").innerHTML = `
+    ${navTabs()}
+    <div class="page-head">
+      <h1>Evaluación por fases</h1>
+      <p>El candidato contesta una fase por sesión. Al terminar cada fase se detiene; tú revisas y autorizas la siguiente. Siempre usa el mismo enlace.</p>
+      ${demo ? `<div class="demo-note"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Modo demo · para que el candidato continúe desde otro día o dispositivo necesitas Firebase conectado</div>` : ""}
+    </div>
+    <div class="toolbar"><button class="btn btn--sm btn--primary" id="cfNew"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Nuevo candidato por fases</button></div>
+    ${arr.length ? `<div class="cf-list">${arr.map(card).join("")}</div>` : `<div class="card"><p class="inv-empty" style="padding:26px">Aún no hay candidatos por fases. Crea uno con el botón de arriba, o activa el modo "Por fases" en Configuración para que los del kiosko aparezcan aquí.</p></div>`}`;
+  wireTabs();
+  $("#cfNew").addEventListener("click", nuevoCandidatoFases);
+  $$("[data-copy]").forEach(b => b.addEventListener("click", () => copiarTexto(b.dataset.copy)));
+  $$("[data-aut]").forEach(b => b.addEventListener("click", () => autorizarFaseCF(b.dataset.aut, Number(b.dataset.next))));
+  $$("[data-resp]").forEach(b => b.addEventListener("click", () => verRespuestasCF(b.dataset.resp)));
+  $$("[data-ver]").forEach(b => b.addEventListener("click", () => verResultadoCF(b.dataset.ver)));
+  $$("[data-del]").forEach(b => b.addEventListener("click", () => eliminarCF(b.dataset.del)));
+}
+function autorizarFaseCF(token, next) {
+  window.Store.actualizarCandidatoFases(token, { faseActual: next }).then(function () { toast(`Fase ${next} habilitada.`); renderFasesView(); }).catch(function () { toast("No se pudo autorizar."); });
+}
+function eliminarCF(token) {
+  if (!confirm("¿Eliminar este candidato por fases? Se borran sus respuestas.")) return;
+  window.Store.eliminarCandidatoFases(token).then(function () { toast("Candidato eliminado."); renderFasesView(); }).catch(function () {});
+}
+function verResultadoCF(token) {
+  window.Store.leerCandidatoFases(token).then(function (cf) {
+    if (!cf || !cf.resultado) { toast("Aún no hay resultado."); return; }
+    abrirDetalleObj({ id: cf.token, datos: cf.datos || {}, respuestas: cf.respuestas || {}, atencion: cf.atencion, resultado: cf.resultado, consentimiento: { aceptado: true, fecha: cf.creada }, fecha: cf.finalizada || cf.creada }, { sinEstado: true });
+  });
+}
+function bancoTodo() {
+  const m = {};
+  (PREGUNTAS || []).forEach(q => { m[q.id] = q; });
+  Object.keys(PREGUNTAS_PUESTO || {}).forEach(k => (PREGUNTAS_PUESTO[k] || []).forEach(q => { m[q.id] = q; }));
+  return m;
+}
+function verRespuestasCF(token) {
+  window.Store.leerCandidatoFases(token).then(function (cf) {
+    if (!cf) return;
+    const mapa = bancoTodo(), resp = cf.respuestas || {}, porFase = { 1: [], 2: [], 3: [], 4: [] };
+    Object.keys(resp).forEach(id => {
+      const q = mapa[id], r = resp[id];
+      const fase = q ? (FASE_DIM_P[q.dim] || 4) : 4;
+      let ans = "—";
+      if (q && q.opciones && r && typeof r.optIdx === "number" && q.opciones[r.optIdx]) ans = q.opciones[r.optIdx].t;
+      else if (r && (r.texto || r.valor || r.respuesta)) ans = r.texto || r.valor || r.respuesta;
+      porFase[fase].push({ texto: q ? q.texto : "Pregunta de control", ans: ans, porque: r && r.porque, otro: r && r.otroTexto });
+    });
+    let cuerpo = [1, 2, 3, 4].map(f => {
+      if (!porFase[f].length) return "";
+      return `<div class="sec-title">Fase ${f} · ${FASES_NOM[f - 1]}</div>` + porFase[f].map(it => `<div class="ans-item"><div class="ans-q">${it.texto}</div><div class="ans-a">${it.ans}</div>${it.otro ? `<div class="ans-otro">Otro: ${it.otro}</div>` : ""}${it.porque ? `<div class="ans-why"><span>Porqué:</span> ${it.porque}</div>` : ""}</div>`).join("");
+    }).join("");
+    if (cf.atencion) cuerpo += `<div class="sec-title">Fase 5 · ${FASES_NOM[4]}</div><div class="ans-item"><div class="ans-q">Reacción promedio</div><div class="ans-a">${cf.atencion.avgMs || "—"} ms</div></div>`;
+    if (!cuerpo) cuerpo = `<p class="inv-empty">Sin respuestas todavía.</p>`;
+    const ov = document.createElement("div"); ov.className = "modal-overlay";
+    ov.innerHTML = `<div class="modal modal--editor"><div class="resumen-head"><h3>Respuestas · ${cf.nombre || "Sin nombre"}</h3><button class="icon-btn" data-x><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div><div class="cf-resp">${cuerpo}</div></div>`;
+    document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
+    const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+    $$("[data-x]", ov).forEach(b => b.addEventListener("click", close));
+    ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  });
+}
+function nuevoCandidatoFases() {
+  const ov = document.createElement("div"); ov.className = "modal-overlay";
+  const puestos = puestosActuales();
+  ov.innerHTML = `<div class="modal modal--inv">
+    <div class="resumen-head"><h3>Nuevo candidato por fases</h3><button class="icon-btn" data-x><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <p class="inv-intro">Genera un enlace para el embudo. El candidato contestará la Fase 1 y se detendrá hasta que tú autorices la siguiente.</p>
+    <div class="field"><label class="field__label">Nombre (opcional)</label><input class="input" id="cfNom" placeholder="Nombre del candidato"></div>
+    <div class="field"><label class="field__label">Puesto (opcional)</label><div class="sel"><select id="cfPue"><option value="">Sin especificar</option>${puestos.map(p => `<option>${p}</option>`).join("")}</select><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div></div>
+    <button class="btn btn--primary" id="cfGen" style="margin-top:4px">Generar enlace</button>
+    <div id="cfRes" hidden style="margin-top:16px"><label class="field__label">Enlace del candidato</label><div class="inv-linkrow"><input class="input" id="cfLink" readonly><button class="btn btn--sm" id="cfCopy">Copiar</button></div></div>
+  </div>`;
+  document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); renderFasesView(); };
+  $$("[data-x]", ov).forEach(b => b.addEventListener("click", close));
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  $("#cfGen", ov).addEventListener("click", () => {
+    const token = "cf_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const cf = { token: token, nombre: $("#cfNom", ov).value.trim(), puesto: $("#cfPue", ov).value, datos: {}, faseActual: 1, faseCompletada: 0, respuestas: {}, atencion: null, estado: "en_curso", creada: new Date().toISOString() };
+    window.Store.crearCandidatoFases(cf).then(function () { $("#cfLink", ov).value = linkBase() + "?inv=" + token; $("#cfRes", ov).hidden = false; }).catch(function () { toast("No se pudo crear."); });
+  });
+  $("#cfCopy", ov).addEventListener("click", () => copiarTexto($("#cfLink", ov).value));
+}
 function _renderAppUI() {
   const puestos = ["Todos", ...[...new Set(state.aspirantes.map(a => a.datos.puesto))].sort()];
   $("#wrap").innerHTML = `
+    ${navTabs()}
     <div class="page-head">
       <h1>Aspirantes</h1>
       <p>Resultados de la evaluación de ingreso. Toca un aspirante para ver su detalle.</p>
@@ -184,6 +325,7 @@ function _renderAppUI() {
   $("#fOrden").addEventListener("change", e => { state.orden = e.target.value; pintarFilas(); });
   $("#cmpBtn").addEventListener("click", () => abrirComparador(state.comparar.slice()));
   $("#invBtn").addEventListener("click", abrirInvitaciones);
+  wireTabs();
   renderDashboard();
   renderPipeline();
   pintarFilas();
@@ -627,8 +769,9 @@ function exportarReportePDF(a) {
   setTimeout(limpiar, 60000);
 }
 
-function abrirDetalle(id) {
-  const a = state.aspirantes.find(x => x.id === id); if (!a) return;
+function abrirDetalle(id) { const a = state.aspirantes.find(x => x.id === id); if (a) abrirDetalleObj(a); }
+function abrirDetalleObj(a, opts) {
+  opts = opts || {};
   const g = a.resultado.global, gcls = clsDePct(g);
   const dimOrden = Object.keys(DIMENSIONES).filter(d => a.resultado.porDim[d]);
   const dims = dimOrden.map(d => {
@@ -717,11 +860,11 @@ function abrirDetalle(id) {
 
       ${bloquePuesto ? `<div class="sec-title">Preguntas del puesto · ${a.datos.puesto}</div>${a.resultado.puesto ? `<div class="dimrow"><div class="dimrow__top"><span class="dimrow__name">Ajuste al puesto</span><span class="badge badge--${clsDePct(a.resultado.puesto.pct)}">${a.resultado.puesto.nivel} · ${pct100(a.resultado.puesto.pct)}%</span></div><div class="dimbar"><div class="dimfill dimfill--${clsDePct(a.resultado.puesto.pct)}" style="width:${pct100(a.resultado.puesto.pct)}%"></div></div></div>` : ""}${bloquePuesto}` : ""}
 
-      <div class="sec-title">Estado en el proceso</div>
+      ${opts.sinEstado ? "" : `<div class="sec-title">Estado en el proceso</div>
       <div class="dec-grid dec-grid--estados">
         ${ORDEN_ESTADOS.map(k => `<button class="dec-btn dec-btn--${ESTADOS[k].cls} ${estadoDe(a) === k ? "is-on" : ""}" data-d="${k}">${ESTADOS[k].t}</button>`).join("")}
       </div>
-      <div class="field" style="margin-top:12px"><label class="field__label">Notas de RH</label><textarea class="input" id="drNotas" rows="3" placeholder="Observaciones…">${a.notas || ""}</textarea></div>
+      <div class="field" style="margin-top:12px"><label class="field__label">Notas de RH</label><textarea class="input" id="drNotas" rows="3" placeholder="Observaciones…">${a.notas || ""}</textarea></div>`}
     </div>`;
 
   $("#drawerOverlay").classList.add("is-on");
@@ -731,12 +874,14 @@ function abrirDetalle(id) {
   $("#drResumen").addEventListener("click", () => abrirResumenIA(a));
   $("#drPDF").addEventListener("click", () => exportarReportePDF(a));
   $("#drawerOverlay").addEventListener("click", cerrar);
-  $$("#drawer .dec-btn").forEach(b => b.addEventListener("click", () => {
-    const k = b.dataset.d; a.estado = k;
-    $$("#drawer .dec-btn").forEach(x => x.classList.toggle("is-on", x.dataset.d === k));
-    guardarEval(a.id, a.estado, a.notas); pintarFilas(); if (typeof renderPipeline === "function") renderPipeline(); if (typeof renderDashboard === "function") renderDashboard();
-  }));
-  $("#drNotas").addEventListener("input", e => { a.notas = e.target.value; guardarEval(a.id, estadoDe(a), a.notas); });
+  if (!opts.sinEstado) {
+    $$("#drawer .dec-btn").forEach(b => b.addEventListener("click", () => {
+      const k = b.dataset.d; a.estado = k;
+      $$("#drawer .dec-btn").forEach(x => x.classList.toggle("is-on", x.dataset.d === k));
+      guardarEval(a.id, a.estado, a.notas); pintarFilas(); if (typeof renderPipeline === "function") renderPipeline(); if (typeof renderDashboard === "function") renderDashboard();
+    }));
+    $("#drNotas").addEventListener("input", e => { a.notas = e.target.value; guardarEval(a.id, estadoDe(a), a.notas); });
+  }
 }
 
 /* ---------- Configuración (texto del popup) ---------- */

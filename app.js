@@ -227,7 +227,7 @@ function renderInstrucciones() {
   $("#goExam").addEventListener("click", () => {
     const ex = construirExamen(state.datos.puesto);
     // Rápida = todo de corrido (sin pantallas de fase). Por fases = conserva las transiciones.
-    state.preguntas = (MODO_EXAMEN === "fases") ? ex : ex.filter(x => !x.__intro);
+    state.preguntas = esModoFases() ? ex : ex.filter(x => !x.__intro);
     state.fase = "examen"; state.qIdx = 0; render();
   });
 }
@@ -280,6 +280,9 @@ const FASE_DIM = { perfil: 1, personalidad: 2, social: 2, intelecto: 3, juicio: 
 function faseDeDim(d) { return FASE_DIM[d] || 4; }
 function faseInfo(n) { return ETAPAS.find(f => f.n === n) || ETAPAS[ETAPAS.length - 1]; }
 var MODO_EXAMEN = "rapida"; // "rapida" = todo de corrido · "fases" = una fase por sesión (frena al terminar cada fase)
+// El embudo por fases aplica a: candidatos del apartado "Por fases" (window.__CF) y al kiosko presencial si el modo global es "fases".
+// Las invitaciones simples (desde casa, window.__INV) SIEMPRE son de corrido.
+function esModoFases() { if (window.__CF) return true; if (window.__INV) return false; return MODO_EXAMEN === "fases"; }
 
 function construirExamen(puesto) {
   const BANCO = bancoPreguntas();
@@ -417,14 +420,36 @@ function renderAbierta(q, tag, prev) {
 function avanzarPregunta() {
   const lista = state.preguntas && state.preguntas.length ? state.preguntas : PREGUNTAS;
   const sig = lista[state.qIdx + 1];
-  // Modo "Por fases": al terminar una fase (lo que sigue es otra fase o ya no hay más), frena la sesión.
-  if (MODO_EXAMEN === "fases" && (!sig || sig.__intro)) {
+  // Modo "Por fases": al terminar una fase (lo que sigue es otra fase o ya no hay más), frena y guarda la fase.
+  if (esModoFases() && (!sig || sig.__intro)) {
     const faseActual = (lista[state.qIdx] && lista[state.qIdx].__fase) || 1;
-    guardarProgreso();
+    guardarFaseEnServidor(faseActual);
     return renderPausaFase(faseActual);
   }
   if (state.qIdx < lista.length - 1) { state.qIdx++; } else { state.fase = "reaccion"; }
   guardarProgreso(); render();
+}
+function guardarFaseEnServidor(fase) {
+  // Si aún no existe el candidato por fases (kiosko presencial / primera sesión), créalo.
+  if (!window.__CF) {
+    var token = "cf_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    window.__CF = { token: token, nombre: (state.datos && state.datos.nombre) || "", puesto: (state.datos && state.datos.puesto) || "", datos: state.datos || {}, faseActual: 1, faseCompletada: 0, respuestas: {}, atencion: null, estado: "en_curso", creada: new Date().toISOString() };
+    window.Store.crearCandidatoFases(window.__CF).catch(function () {});
+  }
+  var cf = window.__CF;
+  cf.faseCompletada = fase; cf.respuestas = state.respuestas; cf.atencion = state.atencion; cf.datos = state.datos;
+  if (state.datos && state.datos.nombre) cf.nombre = state.datos.nombre;
+  if (state.datos && state.datos.puesto) cf.puesto = state.datos.puesto;
+  window.Store.actualizarCandidatoFases(cf.token, { faseCompletada: fase, respuestas: state.respuestas, atencion: state.atencion, datos: state.datos, nombre: cf.nombre || "", puesto: cf.puesto || "" }).catch(function () {});
+  limpiarProgreso();
+}
+function finalizarCF() {
+  var cf = window.__CF; if (!cf) return;
+  var resultado = calcularResultado(state.respuestas, state.atencion);
+  Object.assign(resultado, calcularConfianza(state.respuestas));
+  cf.estado = "finalizado"; cf.faseCompletada = TOTAL_FASES; cf.resultado = resultado; cf.respuestas = state.respuestas; cf.atencion = state.atencion; cf.datos = state.datos;
+  window.Store.actualizarCandidatoFases(cf.token, { estado: "finalizado", faseCompletada: TOTAL_FASES, resultado: resultado, respuestas: state.respuestas, atencion: state.atencion, datos: state.datos, nombre: (state.datos && state.datos.nombre) || cf.nombre || "", puesto: (state.datos && state.datos.puesto) || cf.puesto || "", finalizada: new Date().toISOString() }).catch(function () {});
+  limpiarProgreso();
 }
 function renderPausaFase(faseN) {
   setProgreso(0, "");
@@ -584,6 +609,7 @@ function restaurarProgreso(p) {
 function parseInv() { try { return new URLSearchParams(location.search).get("inv"); } catch (e) { return null; } }
 function arrancar(invToken) {
   var seguir = function () { var p = hayProgreso(invToken); if (p) return renderReanudar(p); render(); };
+  if (invToken && invToken.indexOf("cf_") === 0) return arrancarFases(invToken);
   if (invToken) {
     window.Store.leerInvitacion(invToken).then(function (inv) {
       if (!inv) return seguir();
@@ -594,6 +620,65 @@ function arrancar(invToken) {
       seguir();
     }).catch(seguir);
   } else seguir();
+}
+function arrancarFases(token) {
+  window.Store.leerCandidatoFases(token).then(function (cf) {
+    if (!cf) return render();
+    window.__CF = cf;
+    if (cf.estado === "finalizado") return renderCFFin();
+    var fa = cf.faseActual || 1, fc = cf.faseCompletada || 0;
+    state.datos = Object.assign({}, cf.datos || {});
+    if (cf.nombre && !state.datos.nombre) state.datos.nombre = cf.nombre;
+    if (cf.puesto && !state.datos.puesto) state.datos.puesto = cf.puesto;
+    state.respuestas = Object.assign({}, cf.respuestas || {});
+    state.atencion = cf.atencion || null;
+    if (fc >= fa) return renderCFEspera(fc);   // ya hizo la fase desbloqueada: espera autorización
+    iniciarFase(fa);
+  }).catch(function () { render(); });
+}
+function iniciarFase(fa) {
+  if (fa >= TOTAL_FASES) { state.fase = "reaccion"; state.qIdx = 0; render(); return; } // fase 5 = reacción
+  if (fa <= 1) { render(); return; }   // fase 1: flujo normal (bienvenida → datos → examen)
+  // fase 2-4: ya tiene datos; construye el examen y salta a la intro de esa fase
+  state.preguntas = construirExamen(state.datos.puesto);
+  var idx = state.preguntas.findIndex(function (x) { return x.__intro && x.fase === fa; });
+  state.fase = "examen"; state.qIdx = (idx >= 0 ? idx : 0); render();
+}
+function renderCFEspera(fc) {
+  setProgreso(0, "");
+  $("#stage").innerHTML = `
+    <div class="screen screen--center">
+      <div class="welcome">
+        <div class="welcome__badge">Fase ${fc} de ${TOTAL_FASES} completada</div>
+        <h1 class="welcome__title">Vas muy bien</h1>
+        <p class="welcome__sub">Ya completaste esta fase. Nuestro equipo está revisando tus respuestas; en cuanto se habilite la siguiente fase podrás continuar desde este mismo enlace.</p>
+        <p class="pausa-hint">Te avisaremos cuando esté lista.</p>
+      </div>
+    </div>`;
+}
+function renderCFFin() {
+  setProgreso(0, "");
+  $("#stage").innerHTML = `
+    <div class="screen screen--center">
+      <div class="welcome welcome--done">
+        <div class="done-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <div class="welcome__badge">Evaluación completada</div>
+        <h1 class="welcome__title">Ya completaste tu evaluación</h1>
+        <p class="welcome__sub">Gracias por tu tiempo. Nuestro equipo revisará tus resultados y te contactará sobre los siguientes pasos.</p>
+      </div>
+    </div>`;
+}
+function renderCFTermino() {
+  setProgreso(1, "");
+  $("#stage").innerHTML = `
+    <div class="screen screen--center">
+      <div class="welcome welcome--done">
+        <div class="done-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <div class="welcome__badge">Última fase completada</div>
+        <h1 class="welcome__title">¡Terminaste toda la evaluación!</h1>
+        <p class="welcome__sub">Gracias por tu tiempo y dedicación. Nuestro equipo revisará tus resultados y te avisaremos sobre los siguientes pasos del proceso.</p>
+      </div>
+    </div>`;
 }
 function renderReanudar(p) {
   var reales = (p.preguntas || []).filter(x => !x.__intro);
@@ -637,6 +722,7 @@ function guardarAspirante() {
 
 function renderFin() {
   setProgreso(1, "");
+  if (window.__CF) { finalizarCF(); return renderCFTermino(); }
   guardarAspirante();
   $("#stage").innerHTML = `
     <div class="screen screen--center">

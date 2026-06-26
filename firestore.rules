@@ -24,6 +24,14 @@ service cloud.firestore {
         allow read, update: if true;
         allow create, delete: if request.auth != null;
       }
+
+      // Candidatos por fases (embudo multi-sesión): el candidato lee su enlace
+      // y guarda las respuestas de cada fase (el token es secreto). RH autenticado
+      // los crea, autoriza la siguiente fase (update) y los elimina.
+      match /candidatosFases/{token} {
+        allow read, create, update: if true;
+        allow delete: if request.auth != null;
+      }
     }
   }
 }
