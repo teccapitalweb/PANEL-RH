@@ -1,4 +1,4 @@
-(function (PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS, PREGUNTAS_PUESTO, PREGUNTAS_FASES) {
+(function (PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS, PREGUNTAS_PUESTO, PREGUNTAS_FASES, BLOQUES) {
 /* =====================================================================
    panel.js — Panel privado de Recursos Humanos
    Lee los aspirantes guardados por el kiosko (mismo origen / Firestore).
@@ -179,6 +179,8 @@ function renderApp() {
 
 /* ---------- Apartado "Evaluación por fases" (embudo multi-sesión) ---------- */
 const FASES_NOM = ["Sobre ti", "Tu forma de ser", "Cómo piensas y decides", "En el trabajo", "Tu reacción"];
+const BLOQUES_CFG = (BLOQUES && BLOQUES.length) ? BLOQUES : [{ fases: [1, 2], nombre: "Sobre ti y tu forma de ser" }, { fases: [3], nombre: "Cómo piensas y decides" }, { fases: [4, 5], nombre: "En el trabajo y tu reacción" }];
+const NUM_BLOQUES = BLOQUES_CFG.length;
 const FASE_DIM_P = { perfil: 1, personalidad: 2, social: 2, intelecto: 3, juicio: 3, servicio: 4, estres: 4, logistica: 4, honestidad: 4, psicosocial: 4, entrevista: 4, puesto: 4, control: 4 };
 function copiarTexto(txt) {
   const done = () => toast("Enlace copiado.");
@@ -193,28 +195,29 @@ function renderFasesView() {
 function _renderFasesUI(arr) {
   const card = (cf) => {
     const fc = cf.faseCompletada || 0, fa = cf.faseActual || 1, fin = cf.estado === "finalizado";
-    const steps = [1, 2, 3, 4, 5].map(n => {
+    const steps = BLOQUES_CFG.map((bl, i) => {
+      const n = i + 1;
       let cls = "locked";
       if (fin || n <= fc) cls = "done"; else if (n === fa) cls = "current";
-      return `<div class="cf-step cf-step--${cls}" title="Fase ${n}: ${FASES_NOM[n - 1]}"><span class="cf-step__n">${n}</span><span class="cf-step__l">${FASES_NOM[n - 1]}</span></div>`;
+      return `<div class="cf-step cf-step--${cls}" title="Bloque ${n}: ${bl.nombre}"><span class="cf-step__n">${n}</span><span class="cf-step__l">${bl.nombre}</span></div>`;
     }).join("");
     let estadoTxt, accion = "";
     if (fin) {
       estadoTxt = `<span class="cf-badge cf-badge--ok">Finalizado</span> Evaluación completa.`;
       accion = `<button class="btn btn--sm btn--primary" data-ver="${cf.token}">Ver resultado</button>`;
-    } else if (fc >= fa && fc < 5) {
-      estadoTxt = `<span class="cf-badge cf-badge--warn">Por revisar</span> Terminó la Fase ${fc}. Revisa sus respuestas y autoriza la siguiente.`;
-      accion = `<button class="btn btn--sm btn--primary" data-aut="${cf.token}" data-next="${fc + 1}">Autorizar Fase ${fc + 1}</button><button class="btn btn--sm" data-resp="${cf.token}">Ver respuestas</button>`;
+    } else if (fc >= fa && fc < NUM_BLOQUES) {
+      estadoTxt = `<span class="cf-badge cf-badge--warn">Por revisar</span> Terminó el Bloque ${fc} (${BLOQUES_CFG[fc - 1].nombre}). Revisa sus respuestas y autoriza el siguiente.`;
+      accion = `<button class="btn btn--sm btn--primary" data-aut="${cf.token}" data-next="${fc + 1}">Autorizar Bloque ${fc + 1}</button><button class="btn btn--sm" data-resp="${cf.token}">Ver respuestas</button>`;
     } else {
-      estadoTxt = fc === 0 ? `<span class="cf-badge">Sin empezar</span> Aún no contesta la Fase 1.` : `<span class="cf-badge cf-badge--info">En curso</span> Contestando la Fase ${fa}.`;
+      estadoTxt = fc === 0 ? `<span class="cf-badge">Sin empezar</span> Aún no contesta el Bloque 1.` : `<span class="cf-badge cf-badge--info">En curso</span> Contestando el Bloque ${fa}.`;
       accion = fc > 0 ? `<button class="btn btn--sm" data-resp="${cf.token}">Ver respuestas</button>` : "";
     }
     const link = linkBase() + "?inv=" + cf.token;
-    const faseMostrar = fin ? 5 : fc;
+    const mostrar = fin ? NUM_BLOQUES : fc;
     return `<div class="cf-card">
       <div class="cf-card__head">
         <div><div class="cf-card__name">${cf.nombre || "Sin nombre"}</div><div class="cf-card__sub">${cf.puesto || "Sin puesto"} · ${fechaLarga(cf.creada)}</div></div>
-        <div class="cf-card__prog">Fase ${faseMostrar} de 5</div>
+        <div class="cf-card__prog">Bloque ${mostrar} de ${NUM_BLOQUES}</div>
       </div>
       <div class="cf-steps">${steps}</div>
       <div class="cf-card__estado">${estadoTxt}</div>
@@ -226,7 +229,7 @@ function _renderFasesUI(arr) {
     ${navTabs()}
     <div class="page-head">
       <h1>Evaluación por fases</h1>
-      <p>El candidato contesta una fase por sesión. Al terminar cada fase se detiene; tú revisas y autorizas la siguiente. Siempre usa el mismo enlace.</p>
+      <p>El candidato contesta el examen en ${NUM_BLOQUES} partes (una por sesión). Al terminar cada parte se detiene; tú revisas y autorizas la siguiente. Siempre usa el mismo enlace.</p>
       ${demo ? `<div class="demo-note"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Modo demo · para que el candidato continúe desde otro día o dispositivo necesitas Firebase conectado</div>` : ""}
     </div>
     <div class="toolbar"><button class="btn btn--sm btn--primary" id="cfNew"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Nuevo candidato por fases</button></div>
@@ -244,7 +247,7 @@ function autorizarFaseCF(token, next) {
     const prev = (cf && cf.faseActual) || (next - 1);
     window.Store.actualizarCandidatoFases(token, { faseActual: next }).then(function () {
       renderFasesView();
-      toastUndo(`Fase ${next} habilitada.`, function () {
+      toastUndo(`Bloque ${next} habilitado.`, function () {
         window.Store.actualizarCandidatoFases(token, { faseActual: prev }).then(function () { toast("Autorización revertida."); renderFasesView(); });
       });
     }).catch(function () { toast("No se pudo autorizar."); });
@@ -1233,4 +1236,4 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#logoutBtn").addEventListener("click", () => { window.Store.logout(); try { sessionStorage.removeItem("examenrh_rh_ok"); } catch (e) {} $("#app").classList.remove("is-on"); $("#login").style.display = "grid"; const p = $("#pw"); if (p) { p.value = ""; p.focus(); } });
   $("#cfgBtn").addEventListener("click", abrirConfig);
 });
-})(window.__EVAL.PREGUNTAS, window.__EVAL.DIMENSIONES, window.__EVAL.NIVEL_DIM, window.__EVAL.CRITICAS, window.__EVAL.CONFIG, window.__EVAL.RH_PASS, window.__EVAL.PUESTOS, window.__EVAL.PREGUNTAS_PUESTO, window.__EVAL.PREGUNTAS_FASES);
+})(window.__EVAL.PREGUNTAS, window.__EVAL.DIMENSIONES, window.__EVAL.NIVEL_DIM, window.__EVAL.CRITICAS, window.__EVAL.CONFIG, window.__EVAL.RH_PASS, window.__EVAL.PUESTOS, window.__EVAL.PREGUNTAS_PUESTO, window.__EVAL.PREGUNTAS_FASES, window.__EVAL.BLOQUES);

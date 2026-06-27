@@ -280,6 +280,11 @@ const ETAPAS = [
 const FASE_DIM = { perfil: 1, personalidad: 2, social: 2, intelecto: 3, juicio: 3, servicio: 4, estres: 4, logistica: 4, honestidad: 4, psicosocial: 4, entrevista: 4, puesto: 4, control: 4 };
 function faseDeDim(d) { return FASE_DIM[d] || 4; }
 function faseInfo(n) { return ETAPAS.find(f => f.n === n) || ETAPAS[ETAPAS.length - 1]; }
+// Bloques (sesiones): agrupan fases. El aspirante avanza por bloque; RH autoriza por bloque.
+const TOTAL_BLOQUES = (typeof BLOQUES !== "undefined" ? BLOQUES.length : 1);
+function fasesDeBloque(b) { return (typeof BLOQUES !== "undefined" && BLOQUES[b - 1] && BLOQUES[b - 1].fases) || []; }
+function bloqueDeFase(f) { if (typeof BLOQUES === "undefined") return 1; for (var i = 0; i < BLOQUES.length; i++) { if (BLOQUES[i].fases.indexOf(f) >= 0) return i + 1; } return BLOQUES.length; }
+function bloqueTieneReaccion(b) { return fasesDeBloque(b).indexOf(TOTAL_FASES) >= 0; }
 var MODO_EXAMEN = "rapida"; // "rapida" = todo de corrido · "fases" = una fase por sesión (frena al terminar cada fase)
 // El embudo por fases aplica a: candidatos del apartado "Por fases" (window.__CF) y al kiosko presencial si el modo global es "fases".
 // Las invitaciones simples (desde casa, window.__INV) SIEMPRE son de corrido.
@@ -320,11 +325,11 @@ function construirExamen(puesto) {
 
 function renderFaseIntro(faseN, pct) {
   const fi = faseInfo(faseN);
-  setProgreso(pct, `Fase ${faseN} de ${TOTAL_FASES}`);
+  setProgreso(pct, fi.titulo);
   $("#stage").innerHTML = `
     <div class="screen screen--center">
       <div class="welcome">
-        <div class="welcome__badge">Fase ${faseN} de ${TOTAL_FASES}</div>
+        <div class="welcome__badge">Siguiente sección</div>
         <h1 class="welcome__title">${fi.titulo}</h1>
         <p class="welcome__sub">${fi.desc}</p>
         <button class="btn btn--xl btn--primary" id="faseGo">Continuar</button>
@@ -422,46 +427,56 @@ function renderAbierta(q, tag, prev) {
 }
 function avanzarPregunta() {
   const lista = state.preguntas && state.preguntas.length ? state.preguntas : PREGUNTAS;
+  const actual = lista[state.qIdx];
   const sig = lista[state.qIdx + 1];
-  // Modo "Por fases": al terminar una fase (lo que sigue es otra fase o ya no hay más), frena y guarda la fase.
-  if (esModoFases() && (!sig || sig.__intro)) {
-    const faseActual = (lista[state.qIdx] && lista[state.qIdx].__fase) || 1;
-    guardarFaseEnServidor(faseActual);
-    return renderPausaFase(faseActual);
+  if (esModoFases()) {
+    const faseAct = (actual && actual.__fase) || 1;
+    const blq = bloqueDeFase(faseAct);
+    if (!sig) {
+      // última pregunta del examen: si este bloque incluye la reacción, ve a ella; si no, frena.
+      if (bloqueTieneReaccion(blq)) { state.fase = "reaccion"; guardarProgreso(); return render(); }
+      guardarBloqueEnServidor(blq); return renderPausaBloque(blq);
+    }
+    // lo que sigue es otra sección: si pertenece a OTRO bloque, frena (fin de sesión).
+    if (sig.__intro && bloqueDeFase(sig.fase) !== blq) {
+      guardarBloqueEnServidor(blq); return renderPausaBloque(blq);
+    }
+    // si es otra fase del MISMO bloque, sigue de corrido (muestra su intro sin frenar).
   }
   if (state.qIdx < lista.length - 1) { state.qIdx++; } else { state.fase = "reaccion"; }
   guardarProgreso(); render();
 }
-function guardarFaseEnServidor(fase) {
+function guardarBloqueEnServidor(bloque) {
   // Si aún no existe el candidato por fases (kiosko presencial / primera sesión), créalo.
+  // Nota: faseActual/faseCompletada guardan el número de BLOQUE (1..TOTAL_BLOQUES).
   if (!window.__CF) {
     var token = "cf_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     window.__CF = { token: token, nombre: (state.datos && state.datos.nombre) || "", puesto: (state.datos && state.datos.puesto) || "", datos: state.datos || {}, faseActual: 1, faseCompletada: 0, respuestas: {}, atencion: null, estado: "en_curso", creada: new Date().toISOString() };
     window.Store.crearCandidatoFases(window.__CF).catch(function () {});
   }
   var cf = window.__CF;
-  cf.faseCompletada = fase; cf.respuestas = state.respuestas; cf.atencion = state.atencion; cf.datos = state.datos;
+  cf.faseCompletada = bloque; cf.respuestas = state.respuestas; cf.atencion = state.atencion; cf.datos = state.datos;
   if (state.datos && state.datos.nombre) cf.nombre = state.datos.nombre;
   if (state.datos && state.datos.puesto) cf.puesto = state.datos.puesto;
-  window.Store.actualizarCandidatoFases(cf.token, { faseCompletada: fase, respuestas: state.respuestas, atencion: state.atencion, datos: state.datos, nombre: cf.nombre || "", puesto: cf.puesto || "" }).catch(function () {});
+  window.Store.actualizarCandidatoFases(cf.token, { faseCompletada: bloque, respuestas: state.respuestas, atencion: state.atencion, datos: state.datos, nombre: cf.nombre || "", puesto: cf.puesto || "" }).catch(function () {});
   limpiarProgreso();
 }
 function finalizarCF() {
   var cf = window.__CF; if (!cf) return;
   var resultado = calcularResultado(state.respuestas, state.atencion);
   Object.assign(resultado, calcularConfianza(state.respuestas));
-  cf.estado = "finalizado"; cf.faseCompletada = TOTAL_FASES; cf.resultado = resultado; cf.respuestas = state.respuestas; cf.atencion = state.atencion; cf.datos = state.datos;
-  window.Store.actualizarCandidatoFases(cf.token, { estado: "finalizado", faseCompletada: TOTAL_FASES, resultado: resultado, respuestas: state.respuestas, atencion: state.atencion, datos: state.datos, nombre: (state.datos && state.datos.nombre) || cf.nombre || "", puesto: (state.datos && state.datos.puesto) || cf.puesto || "", finalizada: new Date().toISOString() }).catch(function () {});
+  cf.estado = "finalizado"; cf.faseCompletada = TOTAL_BLOQUES; cf.resultado = resultado; cf.respuestas = state.respuestas; cf.atencion = state.atencion; cf.datos = state.datos;
+  window.Store.actualizarCandidatoFases(cf.token, { estado: "finalizado", faseCompletada: TOTAL_BLOQUES, resultado: resultado, respuestas: state.respuestas, atencion: state.atencion, datos: state.datos, nombre: (state.datos && state.datos.nombre) || cf.nombre || "", puesto: (state.datos && state.datos.puesto) || cf.puesto || "", finalizada: new Date().toISOString() }).catch(function () {});
   limpiarProgreso();
 }
-function renderPausaFase(faseN) {
+function renderPausaBloque(bloque) {
   setProgreso(0, "");
   $("#stage").innerHTML = `
     <div class="screen screen--center">
       <div class="welcome welcome--done">
         <div class="done-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
-        <div class="welcome__badge">Fase ${faseN} de ${TOTAL_FASES} completada</div>
-        <h1 class="welcome__title">¡Listo! Terminaste esta fase</h1>
+        <div class="welcome__badge">Parte ${bloque} de ${TOTAL_BLOQUES} completada</div>
+        <h1 class="welcome__title">¡Listo! Terminaste esta parte</h1>
         <p class="welcome__sub">Gracias por tu tiempo y por compartir tus respuestas con nosotros. Nuestro equipo las revisará y te avisaremos muy pronto sobre los siguientes pasos.</p>
         <p class="pausa-hint">Ya puedes cerrar esta ventana.</p>
       </div>
@@ -629,32 +644,34 @@ function arrancarFases(token) {
     if (!cf) return render();
     window.__CF = cf;
     if (cf.estado === "finalizado") return renderCFFin();
-    var fa = cf.faseActual || 1, fc = cf.faseCompletada || 0;
+    var ba = cf.faseActual || 1, bc = cf.faseCompletada || 0;   // bloque actual / bloque completado
     state.datos = Object.assign({}, cf.datos || {});
     if (cf.nombre && !state.datos.nombre) state.datos.nombre = cf.nombre;
     if (cf.puesto && !state.datos.puesto) state.datos.puesto = cf.puesto;
     state.respuestas = Object.assign({}, cf.respuestas || {});
     state.atencion = cf.atencion || null;
-    if (fc >= fa) return renderCFEspera(fc);   // ya hizo la fase desbloqueada: espera autorización
-    iniciarFase(fa);
+    if (bc >= ba) return renderCFEspera(bc);   // ya hizo el bloque desbloqueado: espera autorización
+    iniciarBloque(ba);
   }).catch(function () { render(); });
 }
-function iniciarFase(fa) {
-  if (fa >= TOTAL_FASES) { state.fase = "reaccion"; state.qIdx = 0; render(); return; } // fase 5 = reacción
-  if (fa <= 1) { render(); return; }   // fase 1: flujo normal (bienvenida → datos → examen)
-  // fase 2-4: ya tiene datos; construye el examen y salta a la intro de esa fase
+function iniciarBloque(b) {
+  var fases = fasesDeBloque(b);
+  var primera = fases.length ? fases[0] : b;
+  if (primera <= 1) { render(); return; }   // bloque 1: bienvenida → datos → examen (corre fases 1 y 2)
+  if (primera >= TOTAL_FASES) { state.fase = "reaccion"; state.qIdx = 0; render(); return; } // bloque solo de reacción
+  // bloque 2+: ya tiene datos; construye el examen y salta a la intro de su primera fase
   state.preguntas = construirExamen(state.datos.puesto);
-  var idx = state.preguntas.findIndex(function (x) { return x.__intro && x.fase === fa; });
+  var idx = state.preguntas.findIndex(function (x) { return x.__intro && x.fase === primera; });
   state.fase = "examen"; state.qIdx = (idx >= 0 ? idx : 0); render();
 }
-function renderCFEspera(fc) {
+function renderCFEspera(bc) {
   setProgreso(0, "");
   $("#stage").innerHTML = `
     <div class="screen screen--center">
       <div class="welcome">
-        <div class="welcome__badge">Fase ${fc} de ${TOTAL_FASES} completada</div>
+        <div class="welcome__badge">Parte ${bc} de ${TOTAL_BLOQUES} completada</div>
         <h1 class="welcome__title">Vas muy bien</h1>
-        <p class="welcome__sub">Ya completaste esta fase. Nuestro equipo está revisando tus respuestas; en cuanto se habilite la siguiente fase podrás continuar desde este mismo enlace.</p>
+        <p class="welcome__sub">Ya completaste esta parte. Nuestro equipo está revisando tus respuestas; en cuanto se habilite la siguiente podrás continuar desde este mismo enlace.</p>
         <p class="pausa-hint">Te avisaremos cuando esté lista.</p>
       </div>
     </div>`;

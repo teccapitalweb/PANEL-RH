@@ -257,6 +257,17 @@ const _EXTRAS_FASES = [
    preguntas. (Copia profunda para que no compartan referencias.) */
 const PREGUNTAS_FASES = PREGUNTAS.concat(_EXTRAS_FASES).map(function (q) { return JSON.parse(JSON.stringify(q)); });
 
+/* ---------- Bloques (sesiones) del examen por fases ----------
+   Las 5 fases siguen existiendo por dentro (y el editor las muestra agrupadas),
+   pero al aspirante el examen se le divide en BLOQUES: cada bloque es una sesión
+   con su freno. RH autoriza por bloque. La reacción (fase 5) va dentro del bloque
+   que la contenga. Para volver a 5 sesiones, basta poner una fase por bloque. */
+const BLOQUES = [
+  { fases: [1, 2], nombre: "Sobre ti y tu forma de ser" },
+  { fases: [3], nombre: "Cómo piensas y decides" },
+  { fases: [4, 5], nombre: "En el trabajo y tu reacción" },
+];
+
 /* Umbrales para clasificar cada dimensión (porcentaje 0-1) */
 const NIVEL_DIM = [
   { min: 0.75, label: "Fortaleza", cls: "ok" },
@@ -387,4 +398,4 @@ const PREGUNTAS_PUESTO = {
 };
 
 /* Puente para el panel de RH (lee estos valores) */
-if (typeof window !== "undefined") { window.__EVAL = { PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS, PREGUNTAS_PUESTO, PREGUNTAS_FASES }; }
+if (typeof window !== "undefined") { window.__EVAL = { PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS, PREGUNTAS_PUESTO, PREGUNTAS_FASES, BLOQUES }; }
