@@ -203,7 +203,8 @@ function _renderFasesUI(arr) {
     }).join("");
     let estadoTxt, accion = "";
     if (fin) {
-      estadoTxt = `<span class="cf-badge cf-badge--ok">Finalizado</span> Evaluación completa.`;
+      const est = cf.estadoProceso || "nuevo", eInfo = ESTADOS[est] || ESTADOS.nuevo;
+      estadoTxt = `<span class="cf-badge cf-badge--ok">Finalizado</span> ${est !== "nuevo" ? `Etiqueta: <span class="cf-et cf-et--${eInfo.cls}">${eInfo.t}</span>` : "Evaluación completa · etiquétalo en Ver resultado."}`;
       accion = `<button class="btn btn--sm btn--primary" data-ver="${cf.token}">Ver resultado</button>`;
     } else if (fc >= fa && fc < NUM_BLOQUES) {
       estadoTxt = `<span class="cf-badge cf-badge--warn">Por revisar</span> Terminó el Bloque ${fc} (${BLOQUES_CFG[fc - 1].nombre}). Revisa sus respuestas y autoriza el siguiente.`;
@@ -267,7 +268,12 @@ function eliminarCF(token) {
 function verResultadoCF(token) {
   window.Store.leerCandidatoFases(token).then(function (cf) {
     if (!cf || !cf.resultado) { toast("Aún no hay resultado."); return; }
-    abrirDetalleObj({ id: cf.token, datos: cf.datos || {}, respuestas: cf.respuestas || {}, atencion: cf.atencion, resultado: cf.resultado, consentimiento: { aceptado: true, fecha: cf.creada }, fecha: cf.finalizada || cf.creada }, { sinEstado: true, banco: (typeof PREGUNTAS_FASES !== "undefined" ? PREGUNTAS_FASES : PREGUNTAS) });
+    const a = { id: cf.token, datos: cf.datos || {}, respuestas: cf.respuestas || {}, atencion: cf.atencion, resultado: cf.resultado, consentimiento: { aceptado: true, fecha: cf.creada }, fecha: cf.finalizada || cf.creada, estado: cf.estadoProceso || "nuevo", notas: cf.notas || "" };
+    abrirDetalleObj(a, {
+      banco: (typeof PREGUNTAS_FASES !== "undefined" ? PREGUNTAS_FASES : PREGUNTAS),
+      guardarEstado: function (estado, notas) { window.Store.actualizarCandidatoFases(token, { estadoProceso: estado, notas: notas }).catch(function () {}); },
+      alCerrar: function () { renderFasesView(); }
+    });
   });
 }
 function bancoTodo() {
@@ -901,7 +907,7 @@ function abrirDetalleObj(a, opts) {
 
   $("#drawerOverlay").classList.add("is-on");
   $("#drawer").classList.add("is-on");
-  const cerrar = () => { $("#drawerOverlay").classList.remove("is-on"); $("#drawer").classList.remove("is-on"); };
+  const cerrar = () => { $("#drawerOverlay").classList.remove("is-on"); $("#drawer").classList.remove("is-on"); if (opts.alCerrar) opts.alCerrar(); };
   $("#drClose").addEventListener("click", cerrar);
   $("#drResumen").addEventListener("click", () => abrirResumenIA(a));
   $("#drPDF").addEventListener("click", () => exportarReportePDF(a));
@@ -910,9 +916,10 @@ function abrirDetalleObj(a, opts) {
     $$("#drawer .dec-btn").forEach(b => b.addEventListener("click", () => {
       const k = b.dataset.d; a.estado = k;
       $$("#drawer .dec-btn").forEach(x => x.classList.toggle("is-on", x.dataset.d === k));
-      guardarEval(a.id, a.estado, a.notas); pintarFilas(); if (typeof renderPipeline === "function") renderPipeline(); if (typeof renderDashboard === "function") renderDashboard();
+      if (opts.guardarEstado) { opts.guardarEstado(k, a.notas); }
+      else { guardarEval(a.id, a.estado, a.notas); pintarFilas(); if (typeof renderPipeline === "function") renderPipeline(); if (typeof renderDashboard === "function") renderDashboard(); }
     }));
-    $("#drNotas").addEventListener("input", e => { a.notas = e.target.value; guardarEval(a.id, estadoDe(a), a.notas); });
+    $("#drNotas").addEventListener("input", e => { a.notas = e.target.value; if (opts.guardarEstado) opts.guardarEstado(estadoDe(a), a.notas); else guardarEval(a.id, estadoDe(a), a.notas); });
   }
 }
 
