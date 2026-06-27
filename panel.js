@@ -264,7 +264,7 @@ function eliminarCF(token) {
 function verResultadoCF(token) {
   window.Store.leerCandidatoFases(token).then(function (cf) {
     if (!cf || !cf.resultado) { toast("Aún no hay resultado."); return; }
-    abrirDetalleObj({ id: cf.token, datos: cf.datos || {}, respuestas: cf.respuestas || {}, atencion: cf.atencion, resultado: cf.resultado, consentimiento: { aceptado: true, fecha: cf.creada }, fecha: cf.finalizada || cf.creada }, { sinEstado: true });
+    abrirDetalleObj({ id: cf.token, datos: cf.datos || {}, respuestas: cf.respuestas || {}, atencion: cf.atencion, resultado: cf.resultado, consentimiento: { aceptado: true, fecha: cf.creada }, fecha: cf.finalizada || cf.creada }, { sinEstado: true, banco: (typeof PREGUNTAS_FASES !== "undefined" ? PREGUNTAS_FASES : PREGUNTAS) });
   });
 }
 function bancoTodo() {
@@ -821,7 +821,7 @@ function abrirDetalleObj(a, opts) {
     const marca = q.opciones.some(o => o.correcta) ? (r.correcta ? `<span class="ok">✓</span>` : `<span class="bad">✕</span>`) : "";
     return `<div class="ans-item"><div class="ans-q">${q.texto}</div><div class="ans-a">${marca}${txt}</div>${r.porque ? `<div class="ans-why"><span>Porqué:</span> ${r.porque}</div>` : ""}</div>`;
   }).join("");
-  const BANCO_DET = PREGUNTAS.concat(typeof PREGUNTAS_FASES !== "undefined" && PREGUNTAS_FASES ? PREGUNTAS_FASES : []);
+  const BANCO_DET = opts.banco || PREGUNTAS;
   const botones = BANCO_DET.filter(q => q.tipo !== "abierta").map(q => {
     const r = a.respuestas[q.id]; if (!r) return "";
     const opt = q.opciones[r.optIdx]; const txt = opt ? opt.t : "—";
@@ -955,7 +955,7 @@ function _abrirConfigUI(c, pl) {
       <div class="sec-title">Preguntas del examen</div>
       <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Agrega, edita o quita las preguntas del banco general sin tocar código. Los espejos y las del puesto se administran aparte.</p>
       <button class="btn btn--sm" id="cfgEditQ" style="margin-bottom:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>Editar preguntas</button>
-      <p style="color:var(--muted);font-size:.84rem;margin:14px 0 12px">Banco extra que <b>solo</b> aparece en el examen por fases. Como se reparte por día, ahí caben más preguntas sin abrumar. Cada una entra en su fase según su tema.</p>
+      <p style="color:var(--muted);font-size:.84rem;margin:14px 0 12px">Banco <b>propio</b> del examen por fases, agrupado por fase. Es independiente del rápido: lo que edites aquí <b>no</b> afecta al examen rápido, y al revés. Arranca como copia de las generales + las extra.</p>
       <button class="btn btn--sm" id="cfgEditQF" style="margin-bottom:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>Editar preguntas por fases</button>
 
       <div class="sec-title">Puestos del examen</div>
@@ -1072,7 +1072,7 @@ function abrirEditorPreguntas() {
 }
 function abrirEditorPreguntasFases() {
   const ORIG = (typeof PREGUNTAS_FASES !== "undefined" && PREGUNTAS_FASES) ? PREGUNTAS_FASES : [];
-  const opts = { titulo: "Editar preguntas por fases", desc: "preguntas extra que solo aparecen en el examen por fases. La dimensión define en qué fase cae. Los cambios se guardan solos.", save: function (b) { return window.Store.guardarPreguntasFases(b); }, originales: ORIG };
+  const opts = { titulo: "Editar preguntas por fases", desc: "preguntas del examen por fases, agrupadas por fase. Es un banco independiente del examen rápido. Los cambios se guardan solos.", save: function (b) { return window.Store.guardarPreguntasFases(b); }, originales: ORIG, porFases: true };
   window.Store.leerPreguntasFases().then(function (lista) {
     const bank = (Array.isArray(lista) && lista.length) ? lista.map(clonarQ) : ORIG.map(clonarQ);
     _editorUI(bank, opts);
@@ -1091,27 +1091,46 @@ function _editorUI(bank, opts) {
   const ORIG = opts.originales || PREGUNTAS;
   const guardar = () => (opts.save ? opts.save(bank) : window.Store.guardarPreguntas(bank)).catch(() => toast("No se pudo guardar."));
 
+  function filaHTML(it, i) {
+    const tp = tipoED(it); const tl = tp === "likert" ? "Escala" : tp === "abierta" ? "Abierta" : "Opción";
+    const dl = tp === "abierta" ? (it.tag || "Entrevista") : (DIMENSIONES[it.dim] || it.dim);
+    return `<div class="ed-row"><div class="ed-row__main"><div class="ed-row__top"><span class="ed-chip ed-chip--${tp}">${tl}</span><span class="ed-dim">${escED(dl)}</span>${it.info ? '<span class="ed-flag">no califica</span>' : ''}</div><div class="ed-row__txt">${escED((it.texto || "").slice(0, 95))}${(it.texto || "").length > 95 ? "…" : ""}</div></div><div class="ed-row__btns"><button class="icon-btn ed-edit" data-i="${i}" aria-label="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg></button><button class="icon-btn ed-del" data-i="${i}" aria-label="Eliminar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></div></div>`;
+  }
   function pintarLista() {
+    let cuerpo;
+    if (opts.porFases) {
+      const conIdx = bank.map((it, i) => ({ it, i }));
+      cuerpo = `<div class="ed-list">${[1, 2, 3, 4, 5].map(f => {
+        const items = conIdx.filter(o => (FASE_DIM_P[o.it.dim] || 4) === f);
+        const dimDef = DIMS.find(d => (FASE_DIM_P[d] || 4) === f) || "";
+        const cuenta = f === 5 ? "reacción" : items.length + (items.length === 1 ? " pregunta" : " preguntas");
+        return `<div class="ed-fase">
+          <div class="ed-fase__head"><span class="ed-fase__n">Fase ${f}</span><span class="ed-fase__t">${FASES_NOM[f - 1]}</span><span class="ed-fase__c">${cuenta}</span></div>
+          ${f === 5
+            ? `<p class="ed-fase__nota">Es la prueba de reflejos: no lleva preguntas escritas.</p>`
+            : `${items.length ? items.map(o => filaHTML(o.it, o.i)).join("") : `<p class="ed-fase__nota">Sin preguntas en esta fase todavía.</p>`}<button class="btn btn--sm ed-fase__add" data-dim="${dimDef}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Agregar a esta fase</button>`}
+        </div>`;
+      }).join("")}</div>`;
+    } else {
+      cuerpo = `<div class="ed-list">${bank.map((it, i) => filaHTML(it, i)).join("")}</div>`;
+    }
     body.innerHTML = `
       <div class="resumen-head"><h3>${opts.titulo || "Editar preguntas del examen"}</h3><button class="icon-btn" id="edClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       <p class="inv-intro">${bank.length} ${opts.desc || "preguntas en el banco general. Los cambios se guardan solos."}</p>
-      <div class="ed-actions"><button class="btn btn--primary btn--sm" id="edAdd">+ Agregar pregunta</button><button class="btn btn--sm" id="edReset">Restaurar originales</button></div>
-      <div class="ed-list">${bank.map((it, i) => {
-        const tp = tipoED(it); const tl = tp === "likert" ? "Escala" : tp === "abierta" ? "Abierta" : "Opción";
-        const dl = tp === "abierta" ? (it.tag || "Entrevista") : (DIMENSIONES[it.dim] || it.dim);
-        return `<div class="ed-row"><div class="ed-row__main"><div class="ed-row__top"><span class="ed-chip ed-chip--${tp}">${tl}</span><span class="ed-dim">${escED(dl)}</span>${it.info ? '<span class="ed-flag">no califica</span>' : ''}</div><div class="ed-row__txt">${escED((it.texto || "").slice(0, 95))}${(it.texto || "").length > 95 ? "…" : ""}</div></div><div class="ed-row__btns"><button class="icon-btn ed-edit" data-i="${i}" aria-label="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg></button><button class="icon-btn ed-del" data-i="${i}" aria-label="Eliminar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg></button></div></div>`;
-      }).join("")}</div>`;
+      <div class="ed-actions">${opts.porFases ? "" : '<button class="btn btn--primary btn--sm" id="edAdd">+ Agregar pregunta</button>'}<button class="btn btn--sm" id="edReset">Restaurar originales</button></div>
+      ${cuerpo}`;
     q("#edClose").addEventListener("click", close);
-    q("#edAdd").addEventListener("click", () => pintarForm(null));
+    const _add = q("#edAdd"); if (_add) _add.addEventListener("click", () => pintarForm(null));
+    qq(".ed-fase__add").forEach(b => b.addEventListener("click", () => pintarForm(null, b.dataset.dim)));
     q("#edReset").addEventListener("click", () => { if (confirm("¿Restaurar las preguntas originales? Se perderán los cambios que hayas hecho.")) { bank.length = 0; ORIG.forEach(p => bank.push(clonarQ(p))); guardar(); pintarLista(); toast("Preguntas restauradas."); } });
     qq(".ed-edit").forEach(b => b.addEventListener("click", () => pintarForm(parseInt(b.dataset.i))));
     qq(".ed-del").forEach(b => b.addEventListener("click", () => { if (confirm("¿Eliminar esta pregunta?")) { bank.splice(parseInt(b.dataset.i), 1); guardar(); pintarLista(); } }));
   }
 
-  function pintarForm(idx) {
+  function pintarForm(idx, dimDefault) {
     const edit = idx != null; const base = edit ? bank[idx] : null;
     let tp = base ? tipoED(base) : "opcion";
-    let dim = base ? (base.dim || DIMS[0]) : DIMS[0];
+    let dim = base ? (base.dim || DIMS[0]) : (dimDefault || DIMS[0]);
     let texto = base ? (base.texto || "") : "";
     let sinPorque = base ? !!base.sinPorque : false, info = base ? !!base.info : false;
     let tag = base ? (base.tag || "") : "", ayuda = base ? (base.ayuda || "") : "", fijarte = base ? (base.fijarte || "") : "";

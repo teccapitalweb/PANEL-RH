@@ -345,6 +345,18 @@ tbody tr:last-child td { border-bottom: none; }
 .ed-chip--likert { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 .ed-chip--abierta { color: #b06bd6; border-color: color-mix(in srgb, #b06bd6 40%, transparent); }
 .ed-dim { font-size: .8rem; color: var(--muted); }
+
+/* Secciones por fase dentro del editor de preguntas por fases */
+.ed-fase { margin-top: 12px; }
+.ed-fase:first-child { margin-top: 2px; }
+.ed-fase__head { display: flex; align-items: center; gap: 10px; padding: 6px 2px 9px; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+.ed-fase__n { font-family: var(--font-mono); font-weight: 700; font-size: .7rem; color: #fff; background: var(--accent); border-radius: 6px; padding: 3px 8px; white-space: nowrap; }
+.ed-fase__t { font-family: var(--font-display); font-weight: 600; font-size: .95rem; color: var(--text); }
+.ed-fase__c { margin-left: auto; font-size: .76rem; color: var(--muted); font-family: var(--font-mono); }
+.ed-fase__nota { font-size: .82rem; color: var(--muted); padding: 2px 2px 8px; font-style: italic; }
+.ed-fase .ed-row { margin-bottom: 8px; }
+.ed-fase__add { display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.ed-fase__add:hover { background: var(--accent-soft); }
 .ed-flag { font-size: .68rem; color: var(--faint); border: 1px dashed var(--border); padding: 2px 6px; border-radius: 5px; }
 .ed-form { display: flex; flex-direction: column; gap: 13px; max-height: 64vh; overflow-y: auto; padding-right: 2px; }
 .ed-types { display: flex; gap: 8px; flex-wrap: wrap; }

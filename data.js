@@ -178,14 +178,10 @@ const PREGUNTAS = [
     fijarte: "El destacado pregunta por los objetivos de los primeros 90 días, la estructura del equipo o las métricas de éxito; no solo por los beneficios." },
 ];
 
-/* ---------- Preguntas EXTRA solo para el examen POR FASES ----------
-   Como el examen por fases se reparte en varios días, no abruma y permite
-   profundizar. Estas preguntas SOLO se agregan cuando el examen corre en
-   modo "por fases"; en el examen rápido (de corrido) NO aparecen.
-   Cada una usa una 'dim' existente, así que cae sola en la fase que le toca
-   por tema (perfil→1, personalidad/social→2, intelecto/juicio→3, el resto→4)
-   y se califica con la misma lógica que el banco normal. */
-const PREGUNTAS_FASES = [
+/* ---------- Preguntas EXTRA exclusivas del examen por fases ----------
+   Estas se suman a una copia del banco general para formar el banco
+   independiente del examen por fases (ver PREGUNTAS_FASES más abajo). */
+const _EXTRAS_FASES = [
   // Fase 1 · Sobre ti (perfil)
   { id: "pf8", dim: "perfil", texto: "¿Cómo te ves de aquí a un par de años?", opciones: [
     { t: "Creciendo dentro de una empresa como esta", v: 3 }, { t: "Con más experiencia y responsabilidades", v: 3 }, { t: "En un trabajo estable", v: 2 }, { t: "Aún no lo tengo claro", v: 1 },
@@ -252,6 +248,14 @@ const PREGUNTAS_FASES = [
     ayuda: "Cuenta el caso concreto: qué pasó, qué hiciste tú y cómo quedó.",
     fijarte: "Busca madurez: que reconozca su parte, que haya buscado el diálogo y que el cierre haya sido constructivo. Descarta a quien echa toda la culpa al otro." },
 ];
+
+/* ---------- Banco INDEPENDIENTE del examen por fases ----------
+   El examen por fases tiene su PROPIO banco, separado del rápido. Arranca como
+   una COPIA del banco general + las preguntas extra, y desde el panel se edita
+   aparte ("Editar preguntas por fases"), agrupado por fase. Así, editar el
+   banco rápido NO afecta al de fases y viceversa: cada examen tiene sus propias
+   preguntas. (Copia profunda para que no compartan referencias.) */
+const PREGUNTAS_FASES = PREGUNTAS.concat(_EXTRAS_FASES).map(function (q) { return JSON.parse(JSON.stringify(q)); });
 
 /* Umbrales para clasificar cada dimensión (porcentaje 0-1) */
 const NIVEL_DIM = [
