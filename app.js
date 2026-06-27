@@ -285,7 +285,9 @@ var MODO_EXAMEN = "rapida"; // "rapida" = todo de corrido · "fases" = una fase 
 function esModoFases() { if (window.__CF) return true; if (window.__INV) return false; return MODO_EXAMEN === "fases"; }
 
 function construirExamen(puesto) {
-  const BANCO = bancoPreguntas();
+  let BANCO = bancoPreguntas();
+  // En modo POR FASES se suman las preguntas extra (se reparten por día, no abruman).
+  if (esModoFases() && typeof PREGUNTAS_FASES !== "undefined" && PREGUNTAS_FASES.length) BANCO = BANCO.concat(PREGUNTAS_FASES);
   const rol = (typeof PREGUNTAS_PUESTO !== "undefined" && PREGUNTAS_PUESTO[puesto]) || [];
   // 1) Banco general agrupado por fase (conserva su orden; "Sobre ti" queda en la fase 1).
   const porFase = { 1: [], 2: [], 3: [], 4: [] };

@@ -178,6 +178,81 @@ const PREGUNTAS = [
     fijarte: "El destacado pregunta por los objetivos de los primeros 90 días, la estructura del equipo o las métricas de éxito; no solo por los beneficios." },
 ];
 
+/* ---------- Preguntas EXTRA solo para el examen POR FASES ----------
+   Como el examen por fases se reparte en varios días, no abruma y permite
+   profundizar. Estas preguntas SOLO se agregan cuando el examen corre en
+   modo "por fases"; en el examen rápido (de corrido) NO aparecen.
+   Cada una usa una 'dim' existente, así que cae sola en la fase que le toca
+   por tema (perfil→1, personalidad/social→2, intelecto/juicio→3, el resto→4)
+   y se califica con la misma lógica que el banco normal. */
+const PREGUNTAS_FASES = [
+  // Fase 1 · Sobre ti (perfil)
+  { id: "pf8", dim: "perfil", texto: "¿Cómo te ves de aquí a un par de años?", opciones: [
+    { t: "Creciendo dentro de una empresa como esta", v: 3 }, { t: "Con más experiencia y responsabilidades", v: 3 }, { t: "En un trabajo estable", v: 2 }, { t: "Aún no lo tengo claro", v: 1 },
+  ]},
+  { id: "pf9", dim: "perfil", info: true, texto: "¿Qué ambiente de trabajo prefieres?", opciones: [
+    { t: "Dinámico y con retos", v: 2 }, { t: "Tranquilo y ordenado", v: 2 }, { t: "Con mucho trato con gente", v: 2 }, { t: "Con tareas claras y rutina", v: 2 }, { t: "Me adapto a cualquiera", v: 2 },
+  ]},
+  { id: "pf10", dim: "perfil", texto: "Cuando algo no sale como esperabas, ¿qué sueles hacer?", opciones: [
+    { t: "Busco otra forma de lograrlo", v: 3 }, { t: "Pido ayuda o consejo", v: 2 }, { t: "Lo intento una vez más igual", v: 1 }, { t: "Me desanimo fácilmente", v: 0 },
+  ]},
+  { id: "pf11", dim: "perfil", info: true, porqueLabel: "¿Por qué te interesa eso?", texto: "¿Qué te gustaría aprender o mejorar en este trabajo?", opciones: [
+    { t: "Habilidades técnicas", v: 2 }, { t: "Trato con clientes", v: 2 }, { t: "Trabajo en equipo", v: 2 }, { t: "Organización y orden", v: 2 }, { t: "Liderar a otros", v: 2 }, { t: "Otra", v: 2, otro: true },
+  ]},
+
+  // Fase 2 · Tu forma de ser (personalidad + social)
+  { id: "per4", dim: "personalidad", texto: "Cuando me comprometo a algo, lo cumplo aunque nadie me esté supervisando.", opciones: L },
+  { id: "per5", dim: "personalidad", texto: "Me adapto bien cuando cambian las reglas o las prioridades.", opciones: L },
+  { id: "per6", dim: "personalidad", texto: "Prefiero adelantarme a los problemas en vez de esperar a que pasen.", opciones: L },
+  { id: "soc3", dim: "social", texto: "Cuando hay un desacuerdo en el equipo, ayudo a que lleguen a un acuerdo.", opciones: L },
+  { id: "soc4", dim: "social", texto: "Se me facilita pedir ayuda cuando la necesito.", opciones: L },
+  { id: "soc5", dim: "social", texto: "Escucho la opinión de los demás aunque no esté de acuerdo.", opciones: L },
+
+  // Fase 3 · Cómo piensas y decides (intelecto + juicio)
+  { id: "int4", dim: "intelecto", texto: "Un producto cuesta $80 y tiene 25% de descuento. ¿Cuánto pagas?", opciones: [
+    { t: "$60", v: 3, correcta: true }, { t: "$55", v: 0 }, { t: "$65", v: 0 }, { t: "$70", v: 0 },
+  ]},
+  { id: "int5", dim: "intelecto", texto: "¿Qué número sigue en la serie?  3, 6, 9, 12, ___", opciones: [
+    { t: "15", v: 3, correcta: true }, { t: "18", v: 0 }, { t: "14", v: 0 }, { t: "16", v: 0 },
+  ]},
+  { id: "int6", dim: "intelecto", texto: "Un trabajo se hace en 2 horas con 3 personas. Con más gente al mismo ritmo, el trabajo…", opciones: [
+    { t: "Se termina más rápido", v: 3, correcta: true }, { t: "Tarda lo mismo", v: 0 }, { t: "Tarda más", v: 0 }, { t: "No se puede saber", v: 0 },
+  ]},
+  { id: "int7", dim: "intelecto", texto: "“Ningún empleado puede faltar sin avisar. Juan es empleado.” Entonces Juan…", opciones: [
+    { t: "No puede faltar sin avisar", v: 3, correcta: true }, { t: "Puede faltar cuando quiera", v: 0 }, { t: "Solo falta los lunes", v: 0 }, { t: "No es empleado", v: 0 },
+  ]},
+  { id: "jui4", dim: "juicio", texto: "Ves a un compañero llevarse mercancía sin pagar. ¿Qué haces?", opciones: [
+    { t: "Lo reporto a mi supervisor", v: 3 }, { t: "Hablo primero con el compañero", v: 2 }, { t: "Lo comento con otros compañeros", v: 1 }, { t: "Finjo que no vi nada", v: 0 },
+  ]},
+  { id: "jui5", dim: "juicio", texto: "Tu turno terminó pero queda un cliente esperando y nadie puede atenderlo. ¿Qué haces?", opciones: [
+    { t: "Lo atiendo aunque me tome unos minutos extra", v: 3 }, { t: "Busco rápido a alguien que lo atienda", v: 2 }, { t: "Le digo que ya es mi hora de salida", v: 1 }, { t: "Me voy, no es mi responsabilidad", v: 0 },
+  ]},
+  { id: "jui6", dim: "juicio", texto: "Tu jefe te da una instrucción que crees que está equivocada. ¿Qué haces?", opciones: [
+    { t: "Le comento mi duda con respeto antes de hacerla", v: 3 }, { t: "La hago, es la instrucción", v: 2 }, { t: "La hago a mi manera sin avisar", v: 1 }, { t: "No la hago", v: 0 },
+  ]},
+
+  // Fase 4 · En el trabajo (servicio, estrés, psicosocial, honestidad, disponibilidad, entrevista)
+  { id: "ser3", dim: "servicio", texto: "Hago lo posible para que un cliente se vaya satisfecho, aunque cueste trabajo.", opciones: L },
+  { id: "ser4", dim: "servicio", texto: "Una queja de un cliente es una oportunidad para mejorar, no un problema.", opciones: L },
+  { id: "est3", dim: "estres", texto: "Aunque tenga un mal día, no lo reflejo con clientes ni compañeros.", opciones: L },
+  { id: "est4", dim: "estres", texto: "Me recupero rápido después de una situación difícil o tensa.", opciones: L },
+  { id: "psi3", dim: "psicosocial", texto: "Siento que mi esfuerzo en el trabajo vale la pena.", opciones: L },
+  { id: "psi4", dim: "psicosocial", texto: "Tengo con quién apoyarme cuando algo me preocupa.", opciones: L },
+  { id: "hon4", dim: "honestidad", texto: "Si nadie se va a enterar, romper una regla pequeña está bien.", opciones: [
+    { t: "Totalmente en desacuerdo", v: 3 }, { t: "En desacuerdo", v: 2 }, { t: "De acuerdo", v: 1 }, { t: "Totalmente de acuerdo", v: 0 },
+  ]},
+  { id: "hon5", dim: "honestidad", texto: "Un proveedor te ofrece un regalo a cambio de un trato preferente. ¿Qué haces?", opciones: [
+    { t: "Lo rechazo y lo reporto", v: 3 }, { t: "Lo rechazo", v: 2 }, { t: "Lo acepto pero no cambio nada", v: 1 }, { t: "Lo acepto", v: 0 },
+  ]},
+  { id: "log4", dim: "logistica", texto: "¿Tendrías disponibilidad para quedarte tiempo extra si se necesita (pagado)?", opciones: [
+    { t: "Sí, sin problema", v: 3 }, { t: "Sí, avisando con tiempo", v: 2 }, { t: "Ocasionalmente", v: 1 }, { t: "No", v: 0 },
+  ]},
+  { id: "ab6", dim: "entrevista", tag: "Resolución de conflictos", tipo: "abierta",
+    texto: "Cuéntame de una vez que tuviste un desacuerdo fuerte con un compañero o jefe. ¿Cómo lo manejaste y cómo terminó?",
+    ayuda: "Cuenta el caso concreto: qué pasó, qué hiciste tú y cómo quedó.",
+    fijarte: "Busca madurez: que reconozca su parte, que haya buscado el diálogo y que el cierre haya sido constructivo. Descarta a quien echa toda la culpa al otro." },
+];
+
 /* Umbrales para clasificar cada dimensión (porcentaje 0-1) */
 const NIVEL_DIM = [
   { min: 0.75, label: "Fortaleza", cls: "ok" },
@@ -308,4 +383,4 @@ const PREGUNTAS_PUESTO = {
 };
 
 /* Puente para el panel de RH (lee estos valores) */
-if (typeof window !== "undefined") { window.__EVAL = { PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS, PREGUNTAS_PUESTO }; }
+if (typeof window !== "undefined") { window.__EVAL = { PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS, PREGUNTAS_PUESTO, PREGUNTAS_FASES }; }

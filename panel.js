@@ -1,4 +1,4 @@
-(function (PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS, PREGUNTAS_PUESTO) {
+(function (PREGUNTAS, DIMENSIONES, NIVEL_DIM, CRITICAS, CONFIG, RH_PASS, PUESTOS, PREGUNTAS_PUESTO, PREGUNTAS_FASES) {
 /* =====================================================================
    panel.js — Panel privado de Recursos Humanos
    Lee los aspirantes guardados por el kiosko (mismo origen / Firestore).
@@ -270,6 +270,7 @@ function verResultadoCF(token) {
 function bancoTodo() {
   const m = {};
   (PREGUNTAS || []).forEach(q => { m[q.id] = q; });
+  (typeof PREGUNTAS_FASES !== "undefined" && PREGUNTAS_FASES ? PREGUNTAS_FASES : []).forEach(q => { m[q.id] = q; });
   Object.keys(PREGUNTAS_PUESTO || {}).forEach(k => (PREGUNTAS_PUESTO[k] || []).forEach(q => { m[q.id] = q; }));
   return m;
 }
@@ -820,7 +821,8 @@ function abrirDetalleObj(a, opts) {
     const marca = q.opciones.some(o => o.correcta) ? (r.correcta ? `<span class="ok">✓</span>` : `<span class="bad">✕</span>`) : "";
     return `<div class="ans-item"><div class="ans-q">${q.texto}</div><div class="ans-a">${marca}${txt}</div>${r.porque ? `<div class="ans-why"><span>Porqué:</span> ${r.porque}</div>` : ""}</div>`;
   }).join("");
-  const botones = PREGUNTAS.filter(q => q.tipo !== "abierta").map(q => {
+  const BANCO_DET = PREGUNTAS.concat(typeof PREGUNTAS_FASES !== "undefined" && PREGUNTAS_FASES ? PREGUNTAS_FASES : []);
+  const botones = BANCO_DET.filter(q => q.tipo !== "abierta").map(q => {
     const r = a.respuestas[q.id]; if (!r) return "";
     const opt = q.opciones[r.optIdx]; const txt = opt ? opt.t : "—";
     const marca = q.dim === "intelecto" ? (r.correcta ? `<span class="ok">✓</span>` : `<span class="bad">✕</span>`) : "";
@@ -832,7 +834,7 @@ function abrirDetalleObj(a, opts) {
     </div>`;
   }).join("");
 
-  const abiertas = PREGUNTAS.filter(q => q.tipo === "abierta").map(q => {
+  const abiertas = BANCO_DET.filter(q => q.tipo === "abierta").map(q => {
     const r = a.respuestas[q.id];
     return `<div class="open-item">
       <div class="open-q">${q.tag} · ${q.texto}</div>
@@ -1198,4 +1200,4 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#logoutBtn").addEventListener("click", () => { window.Store.logout(); try { sessionStorage.removeItem("examenrh_rh_ok"); } catch (e) {} $("#app").classList.remove("is-on"); $("#login").style.display = "grid"; const p = $("#pw"); if (p) { p.value = ""; p.focus(); } });
   $("#cfgBtn").addEventListener("click", abrirConfig);
 });
-})(window.__EVAL.PREGUNTAS, window.__EVAL.DIMENSIONES, window.__EVAL.NIVEL_DIM, window.__EVAL.CRITICAS, window.__EVAL.CONFIG, window.__EVAL.RH_PASS, window.__EVAL.PUESTOS, window.__EVAL.PREGUNTAS_PUESTO);
+})(window.__EVAL.PREGUNTAS, window.__EVAL.DIMENSIONES, window.__EVAL.NIVEL_DIM, window.__EVAL.CRITICAS, window.__EVAL.CONFIG, window.__EVAL.RH_PASS, window.__EVAL.PUESTOS, window.__EVAL.PREGUNTAS_PUESTO, window.__EVAL.PREGUNTAS_FASES);
