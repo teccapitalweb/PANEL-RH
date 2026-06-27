@@ -267,6 +267,7 @@ function intercalar(cuerpo, extras) {
   return out;
 }
 function bancoPreguntas() { return (window.__PREGUNTAS_REMOTAS && window.__PREGUNTAS_REMOTAS.length) ? window.__PREGUNTAS_REMOTAS : PREGUNTAS; }
+function bancoFases() { return (window.__PREGUNTAS_FASES_REMOTAS && window.__PREGUNTAS_FASES_REMOTAS.length) ? window.__PREGUNTAS_FASES_REMOTAS : (typeof PREGUNTAS_FASES !== "undefined" ? PREGUNTAS_FASES : []); }
 
 /* ---------- Fases del examen ---------- */
 const TOTAL_FASES = 5; // 4 de preguntas + la ronda de reacción
@@ -287,7 +288,7 @@ function esModoFases() { if (window.__CF) return true; if (window.__INV) return 
 function construirExamen(puesto) {
   let BANCO = bancoPreguntas();
   // En modo POR FASES se suman las preguntas extra (se reparten por día, no abruman).
-  if (esModoFases() && typeof PREGUNTAS_FASES !== "undefined" && PREGUNTAS_FASES.length) BANCO = BANCO.concat(PREGUNTAS_FASES);
+  if (esModoFases()) { const extra = bancoFases(); if (extra && extra.length) BANCO = BANCO.concat(extra); }
   const rol = (typeof PREGUNTAS_PUESTO !== "undefined" && PREGUNTAS_PUESTO[puesto]) || [];
   // 1) Banco general agrupado por fase (conserva su orden; "Sobre ti" queda en la fase 1).
   const porFase = { 1: [], 2: [], 3: [], 4: [] };
@@ -803,6 +804,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }).catch(function () {});
   window.Store.leerPreguntas().then(function (lista) {
     if (Array.isArray(lista) && lista.length) window.__PREGUNTAS_REMOTAS = lista;
+  }).catch(function () {});
+  window.Store.leerPreguntasFases().then(function (lista) {
+    if (Array.isArray(lista) && lista.length) window.__PREGUNTAS_FASES_REMOTAS = lista;
   }).catch(function () {});
   $("#themeBtn").addEventListener("click", () => applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
   const _rh = $("#rhAccess"); if (_rh) _rh.addEventListener("click", function () { if (window.FIREBASE_ON) { window.location.href = "panel.html"; } else { abrirAccesoRH(); } });
