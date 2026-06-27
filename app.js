@@ -790,8 +790,13 @@ function abrirAccesoRH() {
 
 document.addEventListener("DOMContentLoaded", () => {
   try { applyTheme(localStorage.getItem("examenrh-theme") || "light"); } catch (e) { applyTheme("light"); }
+  // Carga de datos remotos. Defensiva: si falta un método (deploy a medias) o
+  // una llamada truena, NO debe cortar el arranque (botones + examen).
+  function _cargar(metodo, aplica) {
+    try { if (window.Store && typeof window.Store[metodo] === "function") window.Store[metodo]().then(aplica).catch(function () {}); } catch (e) {}
+  }
   // Config (mensaje final + puestos) desde Firebase o localStorage
-  window.Store.leerConfig().then(function (cfg) {
+  _cargar("leerConfig", function (cfg) {
     if (!cfg) return;
     if (cfg.mensajeFinTitulo) CONFIG.mensajeFinTitulo = cfg.mensajeFinTitulo;
     if (cfg.mensajeFinCuerpo) CONFIG.mensajeFinCuerpo = cfg.mensajeFinCuerpo;
@@ -801,14 +806,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (cfg.umbrales) Object.assign(UMBRALES, cfg.umbrales);
     if (cfg.modoExamen) MODO_EXAMEN = cfg.modoExamen;
     if (cfg.marca) { aplicarMarca(cfg.marca); if (state.fase === "bienvenida") render(); }
-  }).catch(function () {});
-  window.Store.leerPreguntas().then(function (lista) {
-    if (Array.isArray(lista) && lista.length) window.__PREGUNTAS_REMOTAS = lista;
-  }).catch(function () {});
-  window.Store.leerPreguntasFases().then(function (lista) {
-    if (Array.isArray(lista) && lista.length) window.__PREGUNTAS_FASES_REMOTAS = lista;
-  }).catch(function () {});
-  $("#themeBtn").addEventListener("click", () => applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
+  });
+  _cargar("leerPreguntas", function (lista) { if (Array.isArray(lista) && lista.length) window.__PREGUNTAS_REMOTAS = lista; });
+  _cargar("leerPreguntasFases", function (lista) { if (Array.isArray(lista) && lista.length) window.__PREGUNTAS_FASES_REMOTAS = lista; });
+  const _th = $("#themeBtn"); if (_th) _th.addEventListener("click", () => applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
   const _rh = $("#rhAccess"); if (_rh) _rh.addEventListener("click", function () { if (window.FIREBASE_ON) { window.location.href = "panel.html"; } else { abrirAccesoRH(); } });
   document.addEventListener("click", () => $$(".datepick").forEach(d => d.classList.remove("is-open")));
   window.addEventListener("beforeunload", guardarProgreso);

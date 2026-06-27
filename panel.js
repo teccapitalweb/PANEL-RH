@@ -955,6 +955,8 @@ function _abrirConfigUI(c, pl) {
       <div class="sec-title">Preguntas del examen</div>
       <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Agrega, edita o quita las preguntas del banco general sin tocar código. Los espejos y las del puesto se administran aparte.</p>
       <button class="btn btn--sm" id="cfgEditQ" style="margin-bottom:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>Editar preguntas</button>
+      <p style="color:var(--muted);font-size:.84rem;margin:14px 0 12px">Banco extra que <b>solo</b> aparece en el examen por fases. Como se reparte por día, ahí caben más preguntas sin abrumar. Cada una entra en su fase según su tema.</p>
+      <button class="btn btn--sm" id="cfgEditQF" style="margin-bottom:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>Editar preguntas por fases</button>
 
       <div class="sec-title">Puestos del examen</div>
       <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Son los botones de "Puesto al que aspiras" que ve el aspirante. Agrega o quita los que necesites.</p>
@@ -1016,6 +1018,7 @@ function _abrirConfigUI(c, pl) {
   $$("[data-x]", ov).forEach(b => b.addEventListener("click", close));
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
   var _eq = $("#cfgEditQ", ov); if (_eq) _eq.addEventListener("click", abrirEditorPreguntas);
+  var _eqf = $("#cfgEditQF", ov); if (_eqf) _eqf.addEventListener("click", abrirEditorPreguntasFases);
 
   var modoSel = c.modo || "rapida";
   $$("#cfgModo .modo-opt", ov).forEach(b => b.addEventListener("click", () => {
@@ -1061,12 +1064,22 @@ function tipoED(q) { if (q.tipo === "abierta") return "abierta"; if (q.tipo === 
 function genIdED() { return "rh_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
 function abrirEditorPreguntas() {
+  const opts = { titulo: "Editar preguntas del examen", desc: "preguntas en el banco general. Los cambios se guardan solos.", save: function (b) { return window.Store.guardarPreguntas(b); }, originales: PREGUNTAS };
   window.Store.leerPreguntas().then(function (lista) {
     const bank = (Array.isArray(lista) && lista.length) ? lista.map(clonarQ) : PREGUNTAS.map(clonarQ);
-    _editorUI(bank);
-  }).catch(function () { _editorUI(PREGUNTAS.map(clonarQ)); });
+    _editorUI(bank, opts);
+  }).catch(function () { _editorUI(PREGUNTAS.map(clonarQ), opts); });
 }
-function _editorUI(bank) {
+function abrirEditorPreguntasFases() {
+  const ORIG = (typeof PREGUNTAS_FASES !== "undefined" && PREGUNTAS_FASES) ? PREGUNTAS_FASES : [];
+  const opts = { titulo: "Editar preguntas por fases", desc: "preguntas extra que solo aparecen en el examen por fases. La dimensión define en qué fase cae. Los cambios se guardan solos.", save: function (b) { return window.Store.guardarPreguntasFases(b); }, originales: ORIG };
+  window.Store.leerPreguntasFases().then(function (lista) {
+    const bank = (Array.isArray(lista) && lista.length) ? lista.map(clonarQ) : ORIG.map(clonarQ);
+    _editorUI(bank, opts);
+  }).catch(function () { _editorUI(ORIG.map(clonarQ), opts); });
+}
+function _editorUI(bank, opts) {
+  opts = opts || {};
   const DIMS = Object.keys(DIMENSIONES).filter(d => d !== "atencion" && d !== "puesto");
   const ov = document.createElement("div"); ov.className = "modal-overlay";
   ov.innerHTML = `<div class="modal modal--editor" role="dialog" aria-modal="true"><div id="edBody"></div></div>`;
@@ -1075,12 +1088,13 @@ function _editorUI(bank) {
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
   const body = ov.querySelector("#edBody");
   const q = s => body.querySelector(s), qq = s => [...body.querySelectorAll(s)];
-  const guardar = () => window.Store.guardarPreguntas(bank).catch(() => toast("No se pudo guardar."));
+  const ORIG = opts.originales || PREGUNTAS;
+  const guardar = () => (opts.save ? opts.save(bank) : window.Store.guardarPreguntas(bank)).catch(() => toast("No se pudo guardar."));
 
   function pintarLista() {
     body.innerHTML = `
-      <div class="resumen-head"><h3>Editar preguntas del examen</h3><button class="icon-btn" id="edClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
-      <p class="inv-intro">${bank.length} preguntas en el banco general. Los cambios se guardan solos.</p>
+      <div class="resumen-head"><h3>${opts.titulo || "Editar preguntas del examen"}</h3><button class="icon-btn" id="edClose" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <p class="inv-intro">${bank.length} ${opts.desc || "preguntas en el banco general. Los cambios se guardan solos."}</p>
       <div class="ed-actions"><button class="btn btn--primary btn--sm" id="edAdd">+ Agregar pregunta</button><button class="btn btn--sm" id="edReset">Restaurar originales</button></div>
       <div class="ed-list">${bank.map((it, i) => {
         const tp = tipoED(it); const tl = tp === "likert" ? "Escala" : tp === "abierta" ? "Abierta" : "Opción";
@@ -1089,7 +1103,7 @@ function _editorUI(bank) {
       }).join("")}</div>`;
     q("#edClose").addEventListener("click", close);
     q("#edAdd").addEventListener("click", () => pintarForm(null));
-    q("#edReset").addEventListener("click", () => { if (confirm("¿Restaurar las preguntas originales? Se perderán los cambios que hayas hecho.")) { bank.length = 0; PREGUNTAS.forEach(p => bank.push(clonarQ(p))); guardar(); pintarLista(); toast("Preguntas restauradas."); } });
+    q("#edReset").addEventListener("click", () => { if (confirm("¿Restaurar las preguntas originales? Se perderán los cambios que hayas hecho.")) { bank.length = 0; ORIG.forEach(p => bank.push(clonarQ(p))); guardar(); pintarLista(); toast("Preguntas restauradas."); } });
     qq(".ed-edit").forEach(b => b.addEventListener("click", () => pintarForm(parseInt(b.dataset.i))));
     qq(".ed-del").forEach(b => b.addEventListener("click", () => { if (confirm("¿Eliminar esta pregunta?")) { bank.splice(parseInt(b.dataset.i), 1); guardar(); pintarLista(); } }));
   }

@@ -77,6 +77,14 @@
       if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("config").doc("preguntas").set({ lista: lista });
       lsSet("examenrh_preguntas", lista); return Promise.resolve();
     },
+    leerPreguntasFases: function () {
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("config").doc("preguntasFases").get().then(function (s) { return s.exists && Array.isArray(s.data().lista) ? s.data().lista : null; });
+      return Promise.resolve(lsGet("examenrh_preguntas_fases", null));
+    },
+    guardarPreguntasFases: function (lista) {
+      if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("config").doc("preguntasFases").set({ lista: lista });
+      lsSet("examenrh_preguntas_fases", lista); return Promise.resolve();
+    },
     /* ----- Candidatos por fases (embudo multi-sesión, apartado aparte) ----- */
     crearCandidatoFases: function (cf) {
       if (on()) return window.db.collection("empresas").doc(window.EMPRESA_ID || "default").collection("candidatosFases").doc(cf.token).set(cf).then(function () { return cf; });
