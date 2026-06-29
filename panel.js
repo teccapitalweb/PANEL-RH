@@ -1098,40 +1098,70 @@ function normalizarURLImagen(url) {
   return url;
 }
 function hoyISO() { return new Date().toISOString().slice(0, 10); }
-// Genera un Excel real (SpreadsheetML 2003): columnas, encabezados con estilo, anchos, zebra y fila fija.
-function descargarExcel(nombreArch, hojaNombre, encabezados, filas) {
-  const esc = v => (v == null ? "" : String(v)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  const nCols = encabezados.length;
-  const anchos = encabezados.map((h, c) => {
-    let max = String(h).length;
-    filas.forEach(f => { const v = f[c]; const L = (v == null ? 0 : String(v).length); if (L > max) max = L; });
-    return Math.min(300, Math.max(58, Math.round(max * 6.6)));
+// Genera un .xlsx NATIVO (OOXML) sin librerías: Excel lo abre directo, sin advertencias.
+function _crc32(b) {
+  if (!_crc32.t) { _crc32.t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); _crc32.t[n] = c >>> 0; } }
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < b.length; i++) crc = (_crc32.t[(crc ^ b[i]) & 0xFF] ^ (crc >>> 8)) >>> 0;
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+function _zip(files) {
+  const enc = new TextEncoder();
+  const u16 = n => [n & 0xFF, (n >>> 8) & 0xFF];
+  const u32 = n => [n & 0xFF, (n >>> 8) & 0xFF, (n >>> 16) & 0xFF, (n >>> 24) & 0xFF];
+  const parts = [], central = []; let offset = 0;
+  files.forEach(f => {
+    const name = enc.encode(f.name);
+    const data = (f.data instanceof Uint8Array) ? f.data : enc.encode(f.data);
+    const crc = _crc32(data);
+    const lh = [].concat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0));
+    parts.push(new Uint8Array(lh), name, data);
+    const ch = [].concat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0), u32(crc), u32(data.length), u32(data.length), u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset));
+    central.push(new Uint8Array(ch), name);
+    offset += lh.length + name.length + data.length;
   });
-  const celda = (v, par) => {
-    const esNum = typeof v === "number" && isFinite(v);
-    const sid = esNum ? (par ? "ne" : "no") : (par ? "te" : "to");
-    return `<Cell ss:StyleID="${sid}"><Data ss:Type="${esNum ? "Number" : "String"}">${esNum ? v : esc(v)}</Data></Cell>`;
-  };
-  const hdrXML = `<Row ss:Height="24">${encabezados.map(h => `<Cell ss:StyleID="h"><Data ss:Type="String">${esc(h)}</Data></Cell>`).join("")}</Row>`;
-  const filasXML = filas.map((f, i) => { const par = i % 2 === 0; let cs = ""; for (let c = 0; c < nCols; c++) cs += celda(f[c] == null ? "" : f[c], par); return `<Row ss:Height="17">${cs}</Row>`; }).join("");
-  const colsXML = anchos.map(w => `<Column ss:Width="${w}"/>`).join("");
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-<Styles>
-<Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Size="11"/></Style>
-<Style ss:ID="h"><Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#2563EB" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1.5" ss:Color="#1E3A8A"/></Borders></Style>
-<Style ss:ID="te"><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/></Borders></Style>
-<Style ss:ID="to"><Interior ss:Color="#F1F5F9" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/></Borders></Style>
-<Style ss:ID="ne"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/></Borders></Style>
-<Style ss:ID="no"><Interior ss:Color="#F1F5F9" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/></Borders></Style>
-</Styles>
-<Worksheet ss:Name="${esc(hojaNombre).slice(0, 31)}">
-<Table>${colsXML}${hdrXML}${filasXML}</Table>
-<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane><ActivePane>2</ActivePane></WorksheetOptions>
-</Worksheet>
-</Workbook>`;
-  const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8;" });
+  let cdSize = 0; central.forEach(p => cdSize += p.length);
+  const eocd = [].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(cdSize), u32(offset), u16(0));
+  const all = parts.concat(central, [new Uint8Array(eocd)]);
+  let total = 0; all.forEach(p => total += p.length);
+  const out = new Uint8Array(total); let pos = 0;
+  all.forEach(p => { out.set(p, pos); pos += p.length; });
+  return out;
+}
+function _colLetra(n) { let s = ""; n++; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+function descargarXLSX(nombreArch, hojaNombre, encabezados, filas) {
+  const escX = v => (v == null ? "" : String(v)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const nCols = encabezados.length;
+  const anchos = encabezados.map((h, c) => { let max = String(h).length; filas.forEach(f => { const v = f[c]; const L = (v == null ? 0 : String(v).length); if (L > max) max = L; }); return Math.min(46, Math.max(10, Math.round(max * 1.15) + 2)); });
+  const colsXml = anchos.map((w, c) => `<col min="${c + 1}" max="${c + 1}" width="${w}" customWidth="1"/>`).join("");
+  const hojaSafe = escX(String(hojaNombre).replace(/[\\\/\?\*\[\]:"]/g, " ").slice(0, 31)) || "Hoja1";
+  const celStr = (v, ref, s) => `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${escX(v)}</t></is></c>`;
+  const celNum = (v, ref, s) => `<c r="${ref}" s="${s}"><v>${v}</v></c>`;
+  let rowsXml = `<row r="1">`;
+  for (let c = 0; c < nCols; c++) rowsXml += celStr(encabezados[c], _colLetra(c) + "1", 1);
+  rowsXml += `</row>`;
+  filas.forEach((f, i) => {
+    const rn = i + 2, par = i % 2 === 0;
+    rowsXml += `<row r="${rn}">`;
+    for (let c = 0; c < nCols; c++) { const v = f[c]; const ref = _colLetra(c) + rn; if (typeof v === "number" && isFinite(v)) rowsXml += celNum(v, ref, par ? 4 : 5); else rowsXml += celStr(v == null ? "" : v, ref, par ? 2 : 3); }
+    rowsXml += `</row>`;
+  });
+  const dimRef = "A1:" + _colLetra(nCols - 1) + (filas.length + 1);
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="${dimRef}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${colsXml}</cols><sheetData>${rowsXml}</sheetData></worksheet>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="4"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2563EB"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F5F9"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FFE2E8F0"/></bottom><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  const ctypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`;
+  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const wb = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${hojaSafe}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const zipBytes = _zip([
+    { name: "[Content_Types].xml", data: ctypes },
+    { name: "_rels/.rels", data: rels },
+    { name: "xl/workbook.xml", data: wb },
+    { name: "xl/_rels/workbook.xml.rels", data: wbRels },
+    { name: "xl/styles.xml", data: styles },
+    { name: "xl/worksheets/sheet1.xml", data: sheet },
+  ]);
+  const blob = new Blob([zipBytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href = url; a.download = nombreArch; document.body.appendChild(a); a.click();
   setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
@@ -1146,7 +1176,7 @@ function exportarAspirantesCSV() {
     const r = a.resultado || {};
     return [a.datos.nombre, a.datos.puesto, fechaLarga(a.fecha), _pctX(r.global), (ESTADOS[estadoDe(a)] || ESTADOS.nuevo).t, (r.banderas || []).map(d => DIMENSIONES[d]).join(", "), (r.aciertosIntelecto != null ? r.aciertosIntelecto : "")].concat(dims.map(d => (r.porDim && r.porDim[d]) ? _pctX(r.porDim[d].pct) : ""));
   });
-  descargarExcel("aspirantes-" + hoyISO() + ".xls", "Aspirantes", enc, filas);
+  descargarXLSX("aspirantes-" + hoyISO() + ".xlsx", "Aspirantes", enc, filas);
   toast(arr.length + (arr.length === 1 ? " aspirante exportado." : " aspirantes exportados."));
 }
 function exportarFasesCSV(arr) {
@@ -1159,7 +1189,7 @@ function exportarFasesCSV(arr) {
     const et = cf.estado === "finalizado" ? (ESTADOS[cf.estadoProceso || "nuevo"] || ESTADOS.nuevo).t : "—";
     return [cf.nombre || "", cf.puesto || "", fechaLarga(cf.creada), avance, et, _pctX(r.global), (r.banderas || []).map(d => DIMENSIONES[d]).join(", ")].concat(dims.map(d => (r.porDim && r.porDim[d]) ? _pctX(r.porDim[d].pct) : ""));
   });
-  descargarExcel("candidatos-por-fases-" + hoyISO() + ".xls", "Por fases", enc, filas);
+  descargarXLSX("candidatos-por-fases-" + hoyISO() + ".xlsx", "Por fases", enc, filas);
   toast(arr.length + (arr.length === 1 ? " candidato exportado." : " candidatos exportados."));
 }
 function clonarQ(q) { return JSON.parse(JSON.stringify(q)); }
