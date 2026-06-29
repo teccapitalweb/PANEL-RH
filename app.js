@@ -368,7 +368,7 @@ function renderPregunta() {
   $("#stage").innerHTML = `
     <div class="screen">
       <div class="q-tag">${tag}</div>
-      ${q.imagen ? `<img class="q-img" src="${normalizarURLImagen(q.imagen)}" alt="Imagen de la pregunta" loading="lazy">` : ""}
+      ${q.imagen ? `<img class="q-img" src="${normalizarURLImagen(q.imagen)}" alt="Imagen de la pregunta" loading="lazy" onerror="this.style.display='none';var n=this.nextElementSibling;if(n)n.hidden=false;"><div class="q-img-rota" hidden>No se pudo cargar la imagen. Continúa con lo que se te indica o avísale a quien aplica el examen.</div>` : ""}
       <div class="q-text">${q.texto}</div>
       <div class="optgrid">
         ${orden.map(i => { const o = q.opciones[i]; return `<button type="button" class="opt ${prev && prev.optIdx === i ? "is-sel" : ""}" data-i="${i}" data-otro="${o.otro ? 1 : 0}">
@@ -418,7 +418,7 @@ function renderAbierta(q, tag, prev) {
   $("#stage").innerHTML = `
     <div class="screen">
       <div class="q-tag q-tag--open">${tag}</div>
-      ${q.imagen ? `<img class="q-img" src="${normalizarURLImagen(q.imagen)}" alt="Imagen de la situación" loading="lazy">` : ""}
+      ${q.imagen ? `<img class="q-img" src="${normalizarURLImagen(q.imagen)}" alt="Imagen de la situación" loading="lazy" onerror="this.style.display='none';var n=this.nextElementSibling;if(n)n.hidden=false;"><div class="q-img-rota" hidden>No se pudo cargar la imagen. Describe lo que se te indica con tus palabras, o avísale a quien aplica el examen.</div>` : ""}
       <div class="q-text">${q.texto}</div>
       <textarea class="input abierta-ta" id="abiertaTA" rows="6" placeholder="Escribe tu respuesta…">${prev && prev.texto ? prev.texto : ""}</textarea>
       ${q.ayuda ? `<p class="abierta-hint">${q.ayuda}</p>` : ""}

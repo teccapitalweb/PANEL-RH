@@ -226,6 +226,20 @@ function _renderFasesUI(arr) {
     </div>`;
   };
   const demo = !window.Store.on;
+  const wireCards = () => {
+    $$("[data-copy]").forEach(b => b.addEventListener("click", () => copiarTexto(b.dataset.copy)));
+    $$("[data-aut]").forEach(b => b.addEventListener("click", () => autorizarFaseCF(b.dataset.aut, Number(b.dataset.next))));
+    $$("[data-resp]").forEach(b => b.addEventListener("click", () => verRespuestasCF(b.dataset.resp)));
+    $$("[data-ver]").forEach(b => b.addEventListener("click", () => verResultadoCF(b.dataset.ver)));
+    $$("[data-del]").forEach(b => b.addEventListener("click", () => eliminarCF(b.dataset.del)));
+  };
+  const pintarCf = (term) => {
+    const t = (term || "").toLowerCase().trim();
+    const filt = t ? arr.filter(cf => ((cf.nombre || "") + " " + (cf.puesto || "")).toLowerCase().includes(t)) : arr;
+    const cont = $("#cfList"); if (!cont) return;
+    cont.innerHTML = filt.length ? filt.map(card).join("") : `<div class="card"><p class="inv-empty" style="padding:22px">Nadie coincide con “${term}”.</p></div>`;
+    wireCards();
+  };
   $("#wrap").innerHTML = `
     ${navTabs()}
     <div class="page-head">
@@ -233,15 +247,18 @@ function _renderFasesUI(arr) {
       <p>El candidato contesta el examen en ${NUM_BLOQUES} partes (una por sesión). Al terminar cada parte se detiene; tú revisas y autorizas la siguiente. Siempre usa el mismo enlace.</p>
       ${demo ? `<div class="demo-note"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Modo demo · para que el candidato continúe desde otro día o dispositivo necesitas Firebase conectado</div>` : ""}
     </div>
-    <div class="toolbar"><button class="btn btn--sm btn--primary" id="cfNew"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Nuevo candidato por fases</button></div>
-    ${arr.length ? `<div class="cf-list">${arr.map(card).join("")}</div>` : `<div class="card"><p class="inv-empty" style="padding:26px">Aún no hay candidatos por fases. Crea uno con el botón de arriba, o activa el modo "Por fases" en Configuración para que los del kiosko aparezcan aquí.</p></div>`}`;
+    <div class="toolbar">
+      <button class="btn btn--sm btn--primary" id="cfNew"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Nuevo candidato por fases</button>
+      ${arr.length ? `<div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input class="input" id="cfQ" placeholder="Buscar por nombre…"></div><button class="btn btn--sm" id="cfExp"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>Exportar</button>` : ""}
+    </div>
+    ${arr.length ? `<div class="cf-list" id="cfList"></div>` : `<div class="card"><p class="inv-empty" style="padding:26px">Aún no hay candidatos por fases. Crea uno con el botón de arriba, o activa el modo "Por fases" en Configuración para que los del kiosko aparezcan aquí.</p></div>`}`;
   wireTabs();
   $("#cfNew").addEventListener("click", nuevoCandidatoFases);
-  $$("[data-copy]").forEach(b => b.addEventListener("click", () => copiarTexto(b.dataset.copy)));
-  $$("[data-aut]").forEach(b => b.addEventListener("click", () => autorizarFaseCF(b.dataset.aut, Number(b.dataset.next))));
-  $$("[data-resp]").forEach(b => b.addEventListener("click", () => verRespuestasCF(b.dataset.resp)));
-  $$("[data-ver]").forEach(b => b.addEventListener("click", () => verResultadoCF(b.dataset.ver)));
-  $$("[data-del]").forEach(b => b.addEventListener("click", () => eliminarCF(b.dataset.del)));
+  if (arr.length) {
+    pintarCf("");
+    $("#cfQ").addEventListener("input", e => pintarCf(e.target.value));
+    $("#cfExp").addEventListener("click", () => exportarFasesCSV(arr));
+  }
 }
 function autorizarFaseCF(token, next) {
   window.Store.leerCandidatoFases(token).then(function (cf) {
@@ -352,6 +369,7 @@ function _renderAppUI() {
       </select><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
       <button class="btn btn--sm btn--primary" id="cmpBtn" disabled>Comparar</button>
       <button class="btn btn--sm" id="invBtn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>Invitar</button>
+      <button class="btn btn--sm" id="expBtn"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>Exportar</button>
       <span class="tb-count" id="cnt"></span>
     </div>
     <div class="card"><div class="table-wrap"><table>
@@ -362,6 +380,7 @@ function _renderAppUI() {
   $("#fOrden").addEventListener("change", e => { state.orden = e.target.value; pintarFilas(); });
   $("#cmpBtn").addEventListener("click", () => abrirComparador(state.comparar.slice()));
   $("#invBtn").addEventListener("click", abrirInvitaciones);
+  $("#expBtn").addEventListener("click", exportarAspirantesCSV);
   wireTabs();
   renderDashboard();
   renderPipeline();
@@ -847,7 +866,7 @@ function abrirDetalleObj(a, opts) {
     const r = a.respuestas[q.id];
     return `<div class="open-item">
       <div class="open-q">${q.tag} · ${q.texto}</div>
-      ${q.imagen ? `<img class="open-img" src="${normalizarURLImagen(q.imagen)}" alt="" loading="lazy">` : ""}
+      ${q.imagen ? `<img class="open-img" src="${normalizarURLImagen(q.imagen)}" alt="" loading="lazy" onerror="this.style.display='none';var n=this.nextElementSibling;if(n)n.hidden=false;"><div class="open-img-rota" hidden>Imagen no disponible. Revisa que el enlace de Drive esté compartido como “cualquiera con el enlace”.</div>` : ""}
       <div class="open-a">${r && r.texto ? r.texto : "—"}</div>
       ${q.fijarte ? `<div class="fijarte"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><div><b>En qué fijarte:</b> ${q.fijarte}</div></div>` : ""}
     </div>`;
@@ -1078,6 +1097,41 @@ function normalizarURLImagen(url) {
   if (id) return "https://drive.google.com/thumbnail?id=" + id + "&sz=w1600";
   return url;
 }
+function hoyISO() { return new Date().toISOString().slice(0, 10); }
+function descargarCSV(nombreArch, encabezados, filas) {
+  const esc = v => { v = (v == null ? "" : String(v)); return /[",\n\r;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const lineas = [encabezados.map(esc).join(";")].concat(filas.map(f => f.map(esc).join(";")));
+  const csv = "\uFEFF" + lineas.join("\r\n"); // BOM UTF-8 → acentos correctos · ; = separador de Excel en español
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = nombreArch; document.body.appendChild(a); a.click();
+  setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+function exportarAspirantesCSV() {
+  const arr = listaFiltrada();
+  if (!arr.length) { toast("No hay aspirantes para exportar."); return; }
+  const dims = Object.keys(DIMENSIONES);
+  const enc = ["Nombre", "Puesto", "Fecha", "Puntaje global %", "Estado", "Banderas", "Aciertos intelecto"].concat(dims.map(d => DIMENSIONES[d]));
+  const filas = arr.map(a => {
+    const r = a.resultado || {};
+    return [a.datos.nombre, a.datos.puesto, fechaLarga(a.fecha), pct100(r.global), (ESTADOS[estadoDe(a)] || ESTADOS.nuevo).t, (r.banderas || []).map(d => DIMENSIONES[d]).join(", "), (r.aciertosIntelecto != null ? r.aciertosIntelecto + "/3" : "")].concat(dims.map(d => (r.porDim && r.porDim[d]) ? pct100(r.porDim[d].pct) : ""));
+  });
+  descargarCSV("aspirantes-" + hoyISO() + ".csv", enc, filas);
+  toast(arr.length + (arr.length === 1 ? " aspirante exportado." : " aspirantes exportados."));
+}
+function exportarFasesCSV(arr) {
+  if (!arr || !arr.length) { toast("No hay candidatos para exportar."); return; }
+  const dims = Object.keys(DIMENSIONES);
+  const enc = ["Nombre", "Puesto", "Fecha", "Avance", "Etiqueta", "Puntaje global %", "Banderas"].concat(dims.map(d => DIMENSIONES[d]));
+  const filas = arr.map(cf => {
+    const r = cf.resultado || {};
+    const avance = cf.estado === "finalizado" ? "Finalizado" : ("Bloque " + (cf.faseCompletada || 0) + " de " + NUM_BLOQUES);
+    const et = cf.estado === "finalizado" ? (ESTADOS[cf.estadoProceso || "nuevo"] || ESTADOS.nuevo).t : "—";
+    return [cf.nombre || "", cf.puesto || "", fechaLarga(cf.creada), avance, et, (r.global != null ? pct100(r.global) : ""), (r.banderas || []).map(d => DIMENSIONES[d]).join(", ")].concat(dims.map(d => (r.porDim && r.porDim[d]) ? pct100(r.porDim[d].pct) : ""));
+  });
+  descargarCSV("candidatos-por-fases-" + hoyISO() + ".csv", enc, filas);
+  toast(arr.length + (arr.length === 1 ? " candidato exportado." : " candidatos exportados."));
+}
 function clonarQ(q) { return JSON.parse(JSON.stringify(q)); }
 function esLikertED(q) { return q.opciones && q.opciones.length === 4 && q.opciones[0] && q.opciones[0].t === "Totalmente de acuerdo" && q.opciones[3] && q.opciones[3].t === "Totalmente en desacuerdo"; }
 function tipoED(q) { if (q.tipo === "abierta") return "abierta"; if (q.tipo === "likert" || esLikertED(q)) return "likert"; return "opcion"; }
@@ -1187,7 +1241,7 @@ function _editorUI(bank, opts) {
         <div class="ed-form">
           <div class="field"><label class="field__label">Tipo de pregunta</label><div class="ed-types">${["likert", "opcion", "abierta"].map(t => `<button type="button" class="ed-type ${t === tp ? "is-on" : ""}" data-t="${t}">${t === "likert" ? "Escala de acuerdo" : t === "opcion" ? "Opción múltiple" : "Pregunta abierta"}</button>`).join("")}</div></div>
           <div class="field"><label class="field__label">Pregunta</label><textarea class="input" id="edTexto" rows="2" placeholder="Escribe la pregunta">${escED(texto)}</textarea></div>
-          <div class="field"><label class="field__label">Imagen (URL, opcional)</label><input class="input" id="edImg" value="${escED(imagen)}" placeholder="https://… pega el enlace de la imagen"><img id="edImgPrev" class="ed-imgprev" src="${escED(normalizarURLImagen(imagen))}" alt="" ${imagen ? "" : "hidden"}></div>
+          <div class="field"><label class="field__label">Imagen (URL, opcional)</label><input class="input" id="edImg" value="${escED(imagen)}" placeholder="https://… pega el enlace de la imagen"><img id="edImgPrev" class="ed-imgprev" src="${escED(normalizarURLImagen(imagen))}" alt="" onerror="this.hidden=true;var w=document.getElementById('edImgWarn');if(w)w.hidden=false;" ${imagen ? "" : "hidden"}><p id="edImgWarn" class="ed-img-warn" hidden>No se pudo cargar. Revisa que el enlace sea correcto y que la imagen esté compartida como “cualquiera con el enlace”.</p></div>
           ${dimBlock}
           ${cuerpo}
           ${flags ? `<div class="ed-flags">${flags}</div>` : ""}
@@ -1196,7 +1250,7 @@ function _editorUI(bank, opts) {
         </div>`;
       qq(".ed-type").forEach(b => b.addEventListener("click", () => { harvest(); tp = b.dataset.t; if (tp === "opcion" && opts.length < 2) opts = [{ t: "", v: 3, correcta: false }, { t: "", v: 0, correcta: false }]; render(); }));
       const add = q("#edOptAdd"); if (add) add.addEventListener("click", () => { harvest(); opts.push({ t: "", v: 2, correcta: false }); render(); });
-      const im = q("#edImg"); if (im) im.addEventListener("input", () => { const p = q("#edImgPrev"); if (p) { p.src = normalizarURLImagen(im.value); p.hidden = !im.value.trim(); } });
+      const im = q("#edImg"); if (im) im.addEventListener("input", () => { const p = q("#edImgPrev"), wn = q("#edImgWarn"); if (wn) wn.hidden = true; if (p) { p.src = normalizarURLImagen(im.value); p.hidden = !im.value.trim(); } });
       qq(".edopt-del").forEach(b => b.addEventListener("click", () => { harvest(); if (opts.length > 2) { opts.splice(parseInt(b.dataset.i), 1); render(); } }));
       q("#edBack").addEventListener("click", pintarLista);
       q("#edCancel").addEventListener("click", pintarLista);

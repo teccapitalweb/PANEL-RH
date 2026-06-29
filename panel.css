@@ -495,4 +495,6 @@ tbody tr:last-child td { border-bottom: none; }
 
 /* Imágenes de preguntas con imagen (Situaciones) */
 .ed-imgprev { display: block; max-width: 100%; max-height: 180px; object-fit: contain; border-radius: 12px; border: 1px solid var(--border); margin-top: 8px; background: var(--surface); }
+.ed-img-warn { margin: 8px 0 0; padding: 9px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent); background: color-mix(in srgb, var(--bad) 10%, transparent); color: var(--bad); font-size: 12.5px; line-height: 1.4; }
 .open-img { display: block; max-width: 100%; max-height: 300px; object-fit: contain; border-radius: 12px; border: 1px solid var(--border); margin: 8px 0; background: var(--surface); }
+.open-img-rota { display: flex; align-items: center; text-align: left; gap: 8px; padding: 11px 13px; margin: 8px 0; border-radius: 10px; border: 1px dashed var(--border); background: var(--surface); color: var(--muted); font-size: 13px; line-height: 1.4; }
