@@ -14,7 +14,7 @@ const pct100 = p => Math.round(p * 100);
 const fdRel = n => { const d = new Date(); d.setDate(d.getDate() + n); const z = x => String(x).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`; };
 
 /* ---------- White-label (marca) ---------- */
-var MARCA = { nombre: "", logo: "", color: "" };
+var MARCA = { nombre: "", logo: "", color: "", acceso: "" };
 function aplicarColor(hex) {
   if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return;
   var r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
@@ -1014,6 +1014,7 @@ function _abrirConfigUI(c, pl) {
       <div class="sec-title">Marca (white-label)</div>
       <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Pon el logo y el color de la empresa. Se aplican al examen del aspirante y a este panel.</p>
       <div class="field"><label class="field__label">Nombre de la empresa</label><input class="input" id="cfgMarcaNom" value="${(c.marca.nombre || "").replace(/"/g, "&quot;")}" placeholder="Ej. Grupo Acme"></div>
+      <div class="field"><label class="field__label">Texto del botón de acceso (kiosko)</label><input class="input" id="cfgMarcaAcceso" value="${(c.marca.acceso || "").replace(/"/g, "&quot;")}" placeholder="Ej. Tec Capital Group"><p class="ed-hint">El botón con candado abajo del examen, por donde RH entra al panel. Si lo dejas vacío, se queda “Tec Capital Group”.</p></div>
       <div class="field"><label class="field__label">Color de marca</label><div class="marca-color"><input type="color" id="cfgMarcaColor" value="${c.marca.color || "#4B4FE6"}"><span class="marca-hex" id="cfgMarcaHex">${c.marca.color || "#4B4FE6"}</span></div></div>
       <div class="field"><label class="field__label">Logo</label>
         <div class="marca-logo">
@@ -1077,7 +1078,7 @@ function _abrirConfigUI(c, pl) {
     if ([uf, up, ub].some(x => isNaN(x) || x < 1 || x > 100)) { $("#cfgErr", ov).textContent = "Los umbrales deben ser porcentajes entre 1 y 100."; return; }
     if (up >= uf) { $("#cfgErr", ov).textContent = "El umbral de Promedio debe ser menor que el de Fortaleza."; return; }
     const umbrales = { fortaleza: uf / 100, promedio: up / 100, bandera: ub / 100 };
-    const marca = { nombre: $("#cfgMarcaNom", ov).value.trim(), logo: logoData, color: colInp.value };
+    const marca = { nombre: $("#cfgMarcaNom", ov).value.trim(), logo: logoData, color: colInp.value, acceso: $("#cfgMarcaAcceso", ov).value.trim() };
     window.Store.guardarConfig({ mensajeFinTitulo: tit, mensajeFinCuerpo: cue, puestos: pl, avisoResponsable: resp, avisoContacto: cont, umbrales: umbrales, marca: marca, modoExamen: modoSel })
       .then(function () { Object.assign(UMBRALES, umbrales); aplicarMarcaPanel(marca); close(); toast("Configuración guardada."); renderApp(); })
       .catch(function () { $("#cfgErr", ov).textContent = "No se pudo guardar."; });

@@ -102,6 +102,8 @@ function aplicarMarca(m) {
     const ic = m.logo ? `<img class="brand__logo" src="${m.logo}" alt="">` : `<span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>`;
     b.innerHTML = ic + " " + (m.nombre || "Evalua RH");
   }
+  const rl = document.getElementById("rhAccessLabel");
+  if (rl && m.acceso) rl.textContent = m.acceso;
 }
 function renderBienvenida() {
   setProgreso(0, "");
@@ -800,7 +802,7 @@ function abrirAccesoRH() {
   const ov = document.createElement("div"); ov.className = "modal-overlay";
   ov.innerHTML = `<div class="modal modal--pw" role="dialog" aria-modal="true">
     <div class="modal__icon" style="background:var(--accent-soft);color:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-    <h3>Tec Capital Group</h3>
+    <h3>${(window.__MARCA && window.__MARCA.acceso) || "Tec Capital Group"}</h3>
     <p>Acceso de Recursos Humanos. Escribe la contraseña para ver el panel.</p>
     <label class="field__label" for="rhPw" style="text-align:left;display:block">Contraseña</label>
     <input class="input" id="rhPw" type="password" placeholder="••••••••" autocomplete="off">
