@@ -270,14 +270,15 @@ function bancoPreguntas() { return (window.__PREGUNTAS_REMOTAS && window.__PREGU
 function bancoFases() { return (window.__PREGUNTAS_FASES_REMOTAS && window.__PREGUNTAS_FASES_REMOTAS.length) ? window.__PREGUNTAS_FASES_REMOTAS : (typeof PREGUNTAS_FASES !== "undefined" ? PREGUNTAS_FASES : []); }
 
 /* ---------- Fases del examen ---------- */
-const TOTAL_FASES = 5; // 4 de preguntas + la ronda de reacción
+const TOTAL_FASES = 6; // 5 de preguntas (incl. Situaciones) + la ronda de reacción
 const ETAPAS = [
   { n: 1, titulo: "Sobre ti", desc: "Empecemos por conocerte un poco." },
   { n: 2, titulo: "Tu forma de ser", desc: "Cómo te relacionas y trabajas con los demás." },
   { n: 3, titulo: "Cómo piensas y decides", desc: "Un par de retos de razonamiento y criterio." },
   { n: 4, titulo: "En el trabajo", desc: "Tu manera de actuar en el día a día." },
+  { n: 5, titulo: "Situaciones", desc: "Mira cada imagen con calma y cuéntanos qué ves y qué harías." },
 ];
-const FASE_DIM = { perfil: 1, personalidad: 2, social: 2, intelecto: 3, juicio: 3, servicio: 4, estres: 4, logistica: 4, honestidad: 4, psicosocial: 4, entrevista: 4, puesto: 4, control: 4 };
+const FASE_DIM = { perfil: 1, personalidad: 2, social: 2, intelecto: 3, juicio: 3, servicio: 4, estres: 4, logistica: 4, honestidad: 4, psicosocial: 4, entrevista: 4, puesto: 4, control: 4, situaciones: 5 };
 function faseDeDim(d) { return FASE_DIM[d] || 4; }
 function faseInfo(n) { return ETAPAS.find(f => f.n === n) || ETAPAS[ETAPAS.length - 1]; }
 // Bloques (sesiones): agrupan fases. El aspirante avanza por bloque; RH autoriza por bloque.
@@ -285,6 +286,17 @@ const TOTAL_BLOQUES = (typeof BLOQUES !== "undefined" ? BLOQUES.length : 1);
 function fasesDeBloque(b) { return (typeof BLOQUES !== "undefined" && BLOQUES[b - 1] && BLOQUES[b - 1].fases) || []; }
 function bloqueDeFase(f) { if (typeof BLOQUES === "undefined") return 1; for (var i = 0; i < BLOQUES.length; i++) { if (BLOQUES[i].fases.indexOf(f) >= 0) return i + 1; } return BLOQUES.length; }
 function bloqueTieneReaccion(b) { return fasesDeBloque(b).indexOf(TOTAL_FASES) >= 0; }
+// Convierte un enlace de Google Drive (compartir/abrir/uc) al formato que SÍ carga como imagen.
+// Si no es de Drive, devuelve la URL tal cual. Se aplica al mostrar, no al guardar.
+function normalizarURLImagen(url) {
+  if (!url) return "";
+  url = String(url).trim();
+  var id = "", m;
+  if ((m = url.match(/\/d\/([a-zA-Z0-9_-]{16,})/))) id = m[1];                 // .../file/d/ID/... y lh3.../d/ID
+  else if ((m = url.match(/[?&]id=([a-zA-Z0-9_-]{16,})/))) id = m[1];          // open?id=ID, uc?id=ID, thumbnail?id=ID
+  if (id) return "https://drive.google.com/thumbnail?id=" + id + "&sz=w1600";
+  return url;
+}
 var MODO_EXAMEN = "rapida"; // "rapida" = todo de corrido · "fases" = una fase por sesión (frena al terminar cada fase)
 // El embudo por fases aplica a: candidatos del apartado "Por fases" (window.__CF) y al kiosko presencial si el modo global es "fases".
 // Las invitaciones simples (desde casa, window.__INV) SIEMPRE son de corrido.
@@ -296,8 +308,9 @@ function construirExamen(puesto) {
   let BANCO = esModoFases() ? bancoFases() : bancoPreguntas();
   const rol = (typeof PREGUNTAS_PUESTO !== "undefined" && PREGUNTAS_PUESTO[puesto]) || [];
   // 1) Banco general agrupado por fase (conserva su orden; "Sobre ti" queda en la fase 1).
-  const porFase = { 1: [], 2: [], 3: [], 4: [] };
-  BANCO.forEach(q => { porFase[faseDeDim(q.dim)].push(q); });
+  const FASES_PREG = []; for (let i = 1; i < TOTAL_FASES; i++) FASES_PREG.push(i); // 1..5 (la última, TOTAL_FASES, es la reacción)
+  const porFase = {}; FASES_PREG.forEach(f => { porFase[f] = []; });
+  BANCO.forEach(q => { const f = faseDeDim(q.dim); (porFase[f] || (porFase[f] = [])).push(q); });
   // 2) Espejos: cada par reparte sus mitades en fases distintas, así quedan separadas.
   const espP = (typeof ESPEJO_PREGUNTAS !== "undefined" ? ESPEJO_PREGUNTAS : []);
   const pares = (typeof ESPEJOS !== "undefined" ? ESPEJOS : []);
@@ -311,8 +324,8 @@ function construirExamen(puesto) {
   // 3) Ensamblar: fase 1 sin intro (va tras "tus datos"); fases 2-4 con pantalla de transición.
   //    Las preguntas del puesto cierran la fase 4. Los espejos se intercalan dentro de su fase.
   const lista = [];
-  [1, 2, 3, 4].forEach(f => {
-    let reales = porFase[f].slice();
+  FASES_PREG.forEach(f => {
+    let reales = (porFase[f] || []).slice();
     if (f === 4) reales = reales.concat(rol);
     const esp = espFase[f] || [];
     if (!reales.length && !esp.length) return; // fase vacía: se omite
@@ -355,6 +368,7 @@ function renderPregunta() {
   $("#stage").innerHTML = `
     <div class="screen">
       <div class="q-tag">${tag}</div>
+      ${q.imagen ? `<img class="q-img" src="${normalizarURLImagen(q.imagen)}" alt="Imagen de la pregunta" loading="lazy">` : ""}
       <div class="q-text">${q.texto}</div>
       <div class="optgrid">
         ${orden.map(i => { const o = q.opciones[i]; return `<button type="button" class="opt ${prev && prev.optIdx === i ? "is-sel" : ""}" data-i="${i}" data-otro="${o.otro ? 1 : 0}">
@@ -404,6 +418,7 @@ function renderAbierta(q, tag, prev) {
   $("#stage").innerHTML = `
     <div class="screen">
       <div class="q-tag q-tag--open">${tag}</div>
+      ${q.imagen ? `<img class="q-img" src="${normalizarURLImagen(q.imagen)}" alt="Imagen de la situación" loading="lazy">` : ""}
       <div class="q-text">${q.texto}</div>
       <textarea class="input abierta-ta" id="abiertaTA" rows="6" placeholder="Escribe tu respuesta…">${prev && prev.texto ? prev.texto : ""}</textarea>
       ${q.ayuda ? `<p class="abierta-hint">${q.ayuda}</p>` : ""}

@@ -41,6 +41,7 @@ const DIMENSIONES = {
   honestidad: "Honestidad e integridad",
   logistica: "Disponibilidad",
   puesto: "Aptitud para el puesto",
+  situaciones: "Situaciones",
   atencion: "Atención y reacción",
 };
 
@@ -265,7 +266,7 @@ const PREGUNTAS_FASES = PREGUNTAS.concat(_EXTRAS_FASES).map(function (q) { retur
 const BLOQUES = [
   { fases: [1, 2], nombre: "Sobre ti y tu forma de ser" },
   { fases: [3], nombre: "Cómo piensas y decides" },
-  { fases: [4, 5], nombre: "En el trabajo y tu reacción" },
+  { fases: [4, 5, 6], nombre: "En el trabajo, situaciones y reacción" },
 ];
 
 /* Umbrales para clasificar cada dimensión (porcentaje 0-1) */

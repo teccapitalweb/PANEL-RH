@@ -178,10 +178,10 @@ function renderApp() {
 }
 
 /* ---------- Apartado "Evaluación por fases" (embudo multi-sesión) ---------- */
-const FASES_NOM = ["Sobre ti", "Tu forma de ser", "Cómo piensas y decides", "En el trabajo", "Tu reacción"];
+const FASES_NOM = ["Sobre ti", "Tu forma de ser", "Cómo piensas y decides", "En el trabajo", "Situaciones", "Tu reacción"];
 const BLOQUES_CFG = (BLOQUES && BLOQUES.length) ? BLOQUES : [{ fases: [1, 2], nombre: "Sobre ti y tu forma de ser" }, { fases: [3], nombre: "Cómo piensas y decides" }, { fases: [4, 5], nombre: "En el trabajo y tu reacción" }];
 const NUM_BLOQUES = BLOQUES_CFG.length;
-const FASE_DIM_P = { perfil: 1, personalidad: 2, social: 2, intelecto: 3, juicio: 3, servicio: 4, estres: 4, logistica: 4, honestidad: 4, psicosocial: 4, entrevista: 4, puesto: 4, control: 4 };
+const FASE_DIM_P = { perfil: 1, personalidad: 2, social: 2, intelecto: 3, juicio: 3, servicio: 4, estres: 4, logistica: 4, honestidad: 4, psicosocial: 4, entrevista: 4, puesto: 4, control: 4, situaciones: 5 };
 function copiarTexto(txt) {
   const done = () => toast("Enlace copiado.");
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done).catch(done);
@@ -847,6 +847,7 @@ function abrirDetalleObj(a, opts) {
     const r = a.respuestas[q.id];
     return `<div class="open-item">
       <div class="open-q">${q.tag} · ${q.texto}</div>
+      ${q.imagen ? `<img class="open-img" src="${normalizarURLImagen(q.imagen)}" alt="" loading="lazy">` : ""}
       <div class="open-a">${r && r.texto ? r.texto : "—"}</div>
       ${q.fijarte ? `<div class="fijarte"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><div><b>En qué fijarte:</b> ${q.fijarte}</div></div>` : ""}
     </div>`;
@@ -1068,6 +1069,15 @@ function _abrirConfigUI(c, pl) {
 const LIKERT_ED = [{ t: "Totalmente de acuerdo", v: 3 }, { t: "De acuerdo", v: 2 }, { t: "En desacuerdo", v: 1 }, { t: "Totalmente en desacuerdo", v: 0 }];
 const CHEV = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
 function escED(s) { return (s == null ? "" : String(s)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function normalizarURLImagen(url) {
+  if (!url) return "";
+  url = String(url).trim();
+  var id = "", m;
+  if ((m = url.match(/\/d\/([a-zA-Z0-9_-]{16,})/))) id = m[1];
+  else if ((m = url.match(/[?&]id=([a-zA-Z0-9_-]{16,})/))) id = m[1];
+  if (id) return "https://drive.google.com/thumbnail?id=" + id + "&sz=w1600";
+  return url;
+}
 function clonarQ(q) { return JSON.parse(JSON.stringify(q)); }
 function esLikertED(q) { return q.opciones && q.opciones.length === 4 && q.opciones[0] && q.opciones[0].t === "Totalmente de acuerdo" && q.opciones[3] && q.opciones[3].t === "Totalmente en desacuerdo"; }
 function tipoED(q) { if (q.tipo === "abierta") return "abierta"; if (q.tipo === "likert" || esLikertED(q)) return "likert"; return "opcion"; }
@@ -1110,13 +1120,15 @@ function _editorUI(bank, opts) {
     let cuerpo;
     if (opts.porFases) {
       const conIdx = bank.map((it, i) => ({ it, i }));
-      cuerpo = `<div class="ed-list">${[1, 2, 3, 4, 5].map(f => {
+      const NF = FASES_NOM.length; // 6: fases 1-5 con preguntas + 6 = reacción
+      cuerpo = `<div class="ed-list">${Array.from({ length: NF }, (_, k) => k + 1).map(f => {
         const items = conIdx.filter(o => (FASE_DIM_P[o.it.dim] || 4) === f);
         const dimDef = DIMS.find(d => (FASE_DIM_P[d] || 4) === f) || "";
-        const cuenta = f === 5 ? "reacción" : items.length + (items.length === 1 ? " pregunta" : " preguntas");
+        const esReaccion = f === NF;
+        const cuenta = esReaccion ? "reacción" : items.length + (items.length === 1 ? " pregunta" : " preguntas");
         return `<div class="ed-fase">
           <div class="ed-fase__head"><span class="ed-fase__n">Fase ${f}</span><span class="ed-fase__t">${FASES_NOM[f - 1]}</span><span class="ed-fase__c">${cuenta}</span></div>
-          ${f === 5
+          ${esReaccion
             ? `<p class="ed-fase__nota">Es la prueba de reflejos: no lleva preguntas escritas.</p>`
             : `${items.length ? items.map(o => filaHTML(o.it, o.i)).join("") : `<p class="ed-fase__nota">Sin preguntas en esta fase todavía.</p>`}<button class="btn btn--sm ed-fase__add" data-dim="${dimDef}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Agregar a esta fase</button>`}
         </div>`;
@@ -1139,17 +1151,22 @@ function _editorUI(bank, opts) {
 
   function pintarForm(idx, dimDefault) {
     const edit = idx != null; const base = edit ? bank[idx] : null;
-    let tp = base ? tipoED(base) : "opcion";
+    let tp = base ? tipoED(base) : (dimDefault === "situaciones" ? "abierta" : "opcion");
     let dim = base ? (base.dim || DIMS[0]) : (dimDefault || DIMS[0]);
+    let imagen = base ? (base.imagen || "") : "";
     let texto = base ? (base.texto || "") : "";
     let sinPorque = base ? !!base.sinPorque : false, info = base ? !!base.info : false;
     let tag = base ? (base.tag || "") : "", ayuda = base ? (base.ayuda || "") : "", fijarte = base ? (base.fijarte || "") : "";
     let opts = (base && tipoED(base) === "opcion" && base.opciones) ? base.opciones.map(o => ({ t: o.t, v: o.v == null ? 2 : o.v, correcta: !!o.correcta, otro: !!o.otro })) : [{ t: "", v: 3, correcta: false }, { t: "", v: 0, correcta: false }];
     if (DIMS.indexOf(dim) < 0 && tp !== "abierta") dim = DIMS[0];
+    const DIMS_AB = ["entrevista", "situaciones"]; // secciones válidas para preguntas abiertas
+    if (tp === "abierta" && DIMS_AB.indexOf(dim) < 0) dim = "entrevista";
 
     function harvest() {
       const t = q("#edTexto"); if (t) texto = t.value;
       const d = q("#edDim"); if (d) dim = d.value;
+      const da = q("#edDimAb"); if (da) dim = da.value;
+      const im = q("#edImg"); if (im) imagen = im.value;
       const sp = q("#edSinPorque"); if (sp) sinPorque = sp.checked;
       const inf = q("#edInfo"); if (inf) info = inf.checked;
       const tg = q("#edTag"); if (tg) tag = tg.value;
@@ -1163,13 +1180,14 @@ function _editorUI(bank, opts) {
       else if (tp === "opcion") cuerpo = `<div class="field"><label class="field__label">Opciones</label><div class="ed-opts">${opts.map((o, i) => `<div class="edopt"><input class="input edopt-t" placeholder="Opción ${i + 1}" value="${escED(o.t)}"><div class="sel sel--mini"><select class="edopt-v">${[3, 2, 1, 0].map(v => `<option ${o.v === v ? "selected" : ""}>${v}</option>`).join("")}</select>${CHEV}</div><label class="edopt-ck"><input type="checkbox" class="edopt-c" ${o.correcta ? "checked" : ""}><span>correcta</span></label>${opts.length > 2 ? `<button type="button" class="icon-btn edopt-del" data-i="${i}" aria-label="Quitar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>` : ""}</div>`).join("")}</div><button type="button" class="btn btn--sm" id="edOptAdd">+ Opción</button><p class="ed-hint">Valor 3 = mejor respuesta, 0 = peor. Marca "correcta" solo en preguntas de intelecto con una respuesta correcta.</p></div>`;
       const flags = tp !== "abierta" ? `<label class="ck"><input type="checkbox" id="edSinPorque" ${sinPorque ? "checked" : ""}><span>No pedir "¿por qué?"</span></label><label class="ck"><input type="checkbox" id="edInfo" ${info ? "checked" : ""}><span>Informativa (no califica)</span></label>` : "";
       const dimBlock = tp === "abierta"
-        ? `<div class="field"><label class="field__label">Etiqueta / área</label><input class="input" id="edTag" value="${escED(tag)}" placeholder="Ej. Motivación"></div><div class="field"><label class="field__label">Ayuda para el aspirante (opcional)</label><input class="input" id="edAyuda" value="${escED(ayuda)}" placeholder="Una pista breve"></div><div class="field"><label class="field__label">Qué observar (nota para RH)</label><textarea class="input" id="edFijarte" rows="2" placeholder="Qué distingue una buena respuesta">${escED(fijarte)}</textarea></div>`
+        ? `<div class="field"><label class="field__label">Sección</label><div class="sel"><select id="edDimAb">${DIMS_AB.map(d => `<option value="${d}" ${d === dim ? "selected" : ""}>${DIMENSIONES[d]}</option>`).join("")}</select>${CHEV}</div><p class="ed-hint">"Situaciones" = pregunta con imagen donde el aspirante describe qué ve y qué haría.</p></div><div class="field"><label class="field__label">Etiqueta / área</label><input class="input" id="edTag" value="${escED(tag)}" placeholder="Ej. Motivación"></div><div class="field"><label class="field__label">Ayuda para el aspirante (opcional)</label><input class="input" id="edAyuda" value="${escED(ayuda)}" placeholder="Una pista breve"></div><div class="field"><label class="field__label">Qué observar (nota para RH)</label><textarea class="input" id="edFijarte" rows="2" placeholder="Qué distingue una buena respuesta">${escED(fijarte)}</textarea></div>`
         : `<div class="field"><label class="field__label">Dimensión</label><div class="sel"><select id="edDim">${DIMS.map(d => `<option value="${d}" ${d === dim ? "selected" : ""}>${DIMENSIONES[d]}</option>`).join("")}</select>${CHEV}</div></div>`;
       body.innerHTML = `
         <div class="resumen-head"><h3>${edit ? "Editar pregunta" : "Nueva pregunta"}</h3><button class="icon-btn" id="edBack" aria-label="Volver"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
         <div class="ed-form">
           <div class="field"><label class="field__label">Tipo de pregunta</label><div class="ed-types">${["likert", "opcion", "abierta"].map(t => `<button type="button" class="ed-type ${t === tp ? "is-on" : ""}" data-t="${t}">${t === "likert" ? "Escala de acuerdo" : t === "opcion" ? "Opción múltiple" : "Pregunta abierta"}</button>`).join("")}</div></div>
           <div class="field"><label class="field__label">Pregunta</label><textarea class="input" id="edTexto" rows="2" placeholder="Escribe la pregunta">${escED(texto)}</textarea></div>
+          <div class="field"><label class="field__label">Imagen (URL, opcional)</label><input class="input" id="edImg" value="${escED(imagen)}" placeholder="https://… pega el enlace de la imagen"><img id="edImgPrev" class="ed-imgprev" src="${escED(normalizarURLImagen(imagen))}" alt="" ${imagen ? "" : "hidden"}></div>
           ${dimBlock}
           ${cuerpo}
           ${flags ? `<div class="ed-flags">${flags}</div>` : ""}
@@ -1178,6 +1196,7 @@ function _editorUI(bank, opts) {
         </div>`;
       qq(".ed-type").forEach(b => b.addEventListener("click", () => { harvest(); tp = b.dataset.t; if (tp === "opcion" && opts.length < 2) opts = [{ t: "", v: 3, correcta: false }, { t: "", v: 0, correcta: false }]; render(); }));
       const add = q("#edOptAdd"); if (add) add.addEventListener("click", () => { harvest(); opts.push({ t: "", v: 2, correcta: false }); render(); });
+      const im = q("#edImg"); if (im) im.addEventListener("input", () => { const p = q("#edImgPrev"); if (p) { p.src = normalizarURLImagen(im.value); p.hidden = !im.value.trim(); } });
       qq(".edopt-del").forEach(b => b.addEventListener("click", () => { harvest(); if (opts.length > 2) { opts.splice(parseInt(b.dataset.i), 1); render(); } }));
       q("#edBack").addEventListener("click", pintarLista);
       q("#edCancel").addEventListener("click", pintarLista);
@@ -1188,7 +1207,8 @@ function _editorUI(bank, opts) {
       if (!texto.trim()) { err.textContent = "Escribe la pregunta."; return; }
       let nq;
       if (tp === "abierta") {
-        nq = { id: (base && base.id) || genIdED(), dim: "entrevista", tipo: "abierta", texto: texto.trim(), tag: tag.trim() || "Entrevista", ayuda: ayuda.trim(), fijarte: fijarte.trim() };
+        const dimAb = dim === "situaciones" ? "situaciones" : "entrevista";
+        nq = { id: (base && base.id) || genIdED(), dim: dimAb, tipo: "abierta", texto: texto.trim(), tag: tag.trim() || (dimAb === "situaciones" ? "Situación" : "Entrevista"), ayuda: ayuda.trim(), fijarte: fijarte.trim() };
       } else if (tp === "likert") {
         nq = { id: (base && base.id) || genIdED(), dim: dim, tipo: "likert", texto: texto.trim(), opciones: LIKERT_ED.map(o => ({ t: o.t, v: o.v })) };
         if (sinPorque) nq.sinPorque = true; if (info) nq.info = true;
@@ -1200,6 +1220,7 @@ function _editorUI(bank, opts) {
         if (sinPorque) nq.sinPorque = true; if (info) nq.info = true;
         if (base && base.porqueLabel) nq.porqueLabel = base.porqueLabel;
       }
+      if (imagen.trim()) nq.imagen = imagen.trim();
       if (edit) bank[idx] = nq; else bank.push(nq);
       guardar(); pintarLista();
     }

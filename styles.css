@@ -233,3 +233,7 @@ button { font-family: inherit; cursor: pointer; }
 /* ---------- White-label (logo) ---------- */
 .brand__logo { height: 26px; width: auto; max-width: 130px; object-fit: contain; border-radius: 6px; vertical-align: middle; }
 .welcome__logo { display: block; max-height: 66px; max-width: 200px; width: auto; object-fit: contain; margin: 0 auto 20px; }
+
+/* Imagen dentro de una pregunta (Situaciones / reactivos pictóricos) */
+.q-img { display: block; width: 100%; max-height: 340px; object-fit: contain; border-radius: var(--r-md, 14px); border: 1px solid var(--border, rgba(0,0,0,.08)); background: var(--surface, #fff); margin: 4px 0 16px; }
+@media (max-width: 560px) { .q-img { max-height: 240px; } }

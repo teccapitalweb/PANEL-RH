@@ -492,3 +492,7 @@ tbody tr:last-child td { border-bottom: none; }
   .vtab { flex: 1; text-align: center; padding: 9px 8px; }
   .cf-step__l { display: none; }
 }
+
+/* Imágenes de preguntas con imagen (Situaciones) */
+.ed-imgprev { display: block; max-width: 100%; max-height: 180px; object-fit: contain; border-radius: 12px; border: 1px solid var(--border); margin-top: 8px; background: var(--surface); }
+.open-img { display: block; max-width: 100%; max-height: 300px; object-fit: contain; border-radius: 12px; border: 1px solid var(--border); margin: 8px 0; background: var(--surface); }
