@@ -1098,25 +1098,55 @@ function normalizarURLImagen(url) {
   return url;
 }
 function hoyISO() { return new Date().toISOString().slice(0, 10); }
-function descargarCSV(nombreArch, encabezados, filas) {
-  const esc = v => { v = (v == null ? "" : String(v)); return /[",\n\r;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-  const lineas = [encabezados.map(esc).join(";")].concat(filas.map(f => f.map(esc).join(";")));
-  const csv = "\uFEFF" + lineas.join("\r\n"); // BOM UTF-8 → acentos correctos · ; = separador de Excel en español
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+// Genera un Excel real (SpreadsheetML 2003): columnas, encabezados con estilo, anchos, zebra y fila fija.
+function descargarExcel(nombreArch, hojaNombre, encabezados, filas) {
+  const esc = v => (v == null ? "" : String(v)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const nCols = encabezados.length;
+  const anchos = encabezados.map((h, c) => {
+    let max = String(h).length;
+    filas.forEach(f => { const v = f[c]; const L = (v == null ? 0 : String(v).length); if (L > max) max = L; });
+    return Math.min(300, Math.max(58, Math.round(max * 6.6)));
+  });
+  const celda = (v, par) => {
+    const esNum = typeof v === "number" && isFinite(v);
+    const sid = esNum ? (par ? "ne" : "no") : (par ? "te" : "to");
+    return `<Cell ss:StyleID="${sid}"><Data ss:Type="${esNum ? "Number" : "String"}">${esNum ? v : esc(v)}</Data></Cell>`;
+  };
+  const hdrXML = `<Row ss:Height="24">${encabezados.map(h => `<Cell ss:StyleID="h"><Data ss:Type="String">${esc(h)}</Data></Cell>`).join("")}</Row>`;
+  const filasXML = filas.map((f, i) => { const par = i % 2 === 0; let cs = ""; for (let c = 0; c < nCols; c++) cs += celda(f[c] == null ? "" : f[c], par); return `<Row ss:Height="17">${cs}</Row>`; }).join("");
+  const colsXML = anchos.map(w => `<Column ss:Width="${w}"/>`).join("");
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles>
+<Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Size="11"/></Style>
+<Style ss:ID="h"><Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#2563EB" ss:Pattern="Solid"/><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1.5" ss:Color="#1E3A8A"/></Borders></Style>
+<Style ss:ID="te"><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/></Borders></Style>
+<Style ss:ID="to"><Interior ss:Color="#F1F5F9" ss:Pattern="Solid"/><Alignment ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/></Borders></Style>
+<Style ss:ID="ne"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/></Borders></Style>
+<Style ss:ID="no"><Interior ss:Color="#F1F5F9" ss:Pattern="Solid"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0"/></Borders></Style>
+</Styles>
+<Worksheet ss:Name="${esc(hojaNombre).slice(0, 31)}">
+<Table>${colsXML}${hdrXML}${filasXML}</Table>
+<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><FreezePanes/><FrozenNoSplit/><SplitHorizontal>1</SplitHorizontal><TopRowBottomPane>1</TopRowBottomPane><ActivePane>2</ActivePane></WorksheetOptions>
+</Worksheet>
+</Workbook>`;
+  const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href = url; a.download = nombreArch; document.body.appendChild(a); a.click();
   setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
 }
+const _pctX = x => (x == null || isNaN(x)) ? "" : Math.round(x * 100);
 function exportarAspirantesCSV() {
   const arr = listaFiltrada();
   if (!arr.length) { toast("No hay aspirantes para exportar."); return; }
   const dims = Object.keys(DIMENSIONES);
-  const enc = ["Nombre", "Puesto", "Fecha", "Puntaje global %", "Estado", "Banderas", "Aciertos intelecto"].concat(dims.map(d => DIMENSIONES[d]));
+  const enc = ["Nombre", "Puesto", "Fecha", "Puntaje global %", "Estado", "Banderas", "Aciertos intelecto (de 3)"].concat(dims.map(d => DIMENSIONES[d]));
   const filas = arr.map(a => {
     const r = a.resultado || {};
-    return [a.datos.nombre, a.datos.puesto, fechaLarga(a.fecha), pct100(r.global), (ESTADOS[estadoDe(a)] || ESTADOS.nuevo).t, (r.banderas || []).map(d => DIMENSIONES[d]).join(", "), (r.aciertosIntelecto != null ? r.aciertosIntelecto + "/3" : "")].concat(dims.map(d => (r.porDim && r.porDim[d]) ? pct100(r.porDim[d].pct) : ""));
+    return [a.datos.nombre, a.datos.puesto, fechaLarga(a.fecha), _pctX(r.global), (ESTADOS[estadoDe(a)] || ESTADOS.nuevo).t, (r.banderas || []).map(d => DIMENSIONES[d]).join(", "), (r.aciertosIntelecto != null ? r.aciertosIntelecto : "")].concat(dims.map(d => (r.porDim && r.porDim[d]) ? _pctX(r.porDim[d].pct) : ""));
   });
-  descargarCSV("aspirantes-" + hoyISO() + ".csv", enc, filas);
+  descargarExcel("aspirantes-" + hoyISO() + ".xls", "Aspirantes", enc, filas);
   toast(arr.length + (arr.length === 1 ? " aspirante exportado." : " aspirantes exportados."));
 }
 function exportarFasesCSV(arr) {
@@ -1127,9 +1157,9 @@ function exportarFasesCSV(arr) {
     const r = cf.resultado || {};
     const avance = cf.estado === "finalizado" ? "Finalizado" : ("Bloque " + (cf.faseCompletada || 0) + " de " + NUM_BLOQUES);
     const et = cf.estado === "finalizado" ? (ESTADOS[cf.estadoProceso || "nuevo"] || ESTADOS.nuevo).t : "—";
-    return [cf.nombre || "", cf.puesto || "", fechaLarga(cf.creada), avance, et, (r.global != null ? pct100(r.global) : ""), (r.banderas || []).map(d => DIMENSIONES[d]).join(", ")].concat(dims.map(d => (r.porDim && r.porDim[d]) ? pct100(r.porDim[d].pct) : ""));
+    return [cf.nombre || "", cf.puesto || "", fechaLarga(cf.creada), avance, et, _pctX(r.global), (r.banderas || []).map(d => DIMENSIONES[d]).join(", ")].concat(dims.map(d => (r.porDim && r.porDim[d]) ? _pctX(r.porDim[d].pct) : ""));
   });
-  descargarCSV("candidatos-por-fases-" + hoyISO() + ".csv", enc, filas);
+  descargarExcel("candidatos-por-fases-" + hoyISO() + ".xls", "Por fases", enc, filas);
   toast(arr.length + (arr.length === 1 ? " candidato exportado." : " candidatos exportados."));
 }
 function clonarQ(q) { return JSON.parse(JSON.stringify(q)); }
