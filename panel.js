@@ -316,7 +316,7 @@ function verRespuestasCF(token) {
     });
     let cuerpo = [1, 2, 3, 4].map(f => {
       if (!porFase[f].length) return "";
-      return `<div class="sec-title">Fase ${f} · ${FASES_NOM[f - 1]}</div>` + porFase[f].map(it => `<div class="ans-item"><div class="ans-q">${it.texto}</div><div class="ans-a">${it.ans}</div>${it.otro ? `<div class="ans-otro">Otro: ${it.otro}</div>` : ""}${it.porque ? `<div class="ans-why"><span>Porqué:</span> ${it.porque}</div>` : ""}</div>`).join("");
+      return `<div class="sec-title">Fase ${f} · ${FASES_NOM[f - 1]}</div>` + porFase[f].map(it => `<div class="ans-item"><div class="ans-q">${it.texto}</div><div class="ans-a">${it.ans}</div>${it.otro ? `<div class="ans-otro">Otro: ${escED(it.otro)}</div>` : ""}${it.porque ? `<div class="ans-why"><span>Porqué:</span> ${escED(it.porque)}</div>` : ""}</div>`).join("");
     }).join("");
     if (cf.atencion) cuerpo += `<div class="sec-title">Fase 5 · ${FASES_NOM[4]}</div><div class="ans-item"><div class="ans-q">Reacción promedio</div><div class="ans-a">${cf.atencion.avgMs || "—"} ms</div></div>`;
     if (!cuerpo) cuerpo = `<p class="inv-empty">Sin respuestas todavía.</p>`;
@@ -524,7 +524,7 @@ function exportarComparadorPDF(sel) {
   root.innerHTML = `
     <div class="pr-head"><div><div class="pr-head__t">${resp}</div><div class="pr-head__sub">Comparativo de finalistas</div></div><div class="pr-head__date">Generado: ${hoy}</div></div>
     <div class="pr-name">${series.length} finalistas comparados</div>
-    <div class="pr-role">${sel.map(a => `${a.datos.nombre} (${a.datos.puesto})`).join(" · ")}</div>
+    <div class="pr-role">${sel.map(a => `${escED(a.datos.nombre)} (${escED(a.datos.puesto)})`).join(" · ")}</div>
     <div class="pr-sec">Comparativo por dimensión</div>
     <div class="prc-legend">${legend}</div>
     <div class="prc-chart">${svg}</div>
@@ -569,7 +569,7 @@ function abrirComparador(ids) {
     ${legend}
     <div class="cmp-chart">${svgBarrasAgrupadas(grupos, series, COLS)}</div>
     <div class="cmp-wrap"><table class="cmp-table">
-      <thead><tr><th></th>${sel.map(a => `<th><div class="cmp-name">${a.datos.nombre}</div><div class="cmp-role">${a.datos.puesto}</div></th>`).join("")}</tr></thead>
+      <thead><tr><th></th>${sel.map(a => `<th><div class="cmp-name">${escED(a.datos.nombre)}</div><div class="cmp-role">${escED(a.datos.puesto)}</div></th>`).join("")}</tr></thead>
       <tbody>
         ${fila("Banderas críticas", banVals, v => `${v}`, idxMin(banVals))}
         ${fila("Confiabilidad", confVals, null, -1)}
@@ -812,7 +812,7 @@ function exportarReportePDF(a) {
 
     <div class="pr-sec">Estado en el proceso</div>
     <div class="pr-decline">${dec}</div>
-    ${a.notas ? `<div class="pr-notas"><b>Notas:</b> ${a.notas}</div>` : ""}
+    ${a.notas ? `<div class="pr-notas"><b>Notas:</b> ${escED(a.notas)}</div>` : ""}
 
     ${confPR}
     <div class="pr-sec">Privacidad</div>
@@ -838,10 +838,10 @@ function abrirDetalleObj(a, opts) {
       <div class="dimbar"><div class="dimfill dimfill--${cls}" style="width:${pct100(o.pct)}%"></div></div></div>`;
   }).join("");
   const contacto = [
-    ["Teléfono", a.datos.tel ? `<a href="tel:${a.datos.tel.replace(/\s/g, "")}">${a.datos.tel}</a>` : ""],
-    ["Correo", a.datos.correo ? `<a href="mailto:${a.datos.correo}">${a.datos.correo}</a>` : ""],
-    ["CURP", a.datos.curp], ["Nacimiento", a.datos.nacimiento ? fechaLarga(a.datos.nacimiento) : ""],
-    ["Género", a.datos.genero], ["Escolaridad", a.datos.escolaridad], ["Puesto", a.datos.puesto],
+    ["Teléfono", a.datos.tel ? `<a href="tel:${escED(a.datos.tel.replace(/\s/g, ""))}">${escED(a.datos.tel)}</a>` : ""],
+    ["Correo", a.datos.correo ? `<a href="mailto:${escED(a.datos.correo)}">${escED(a.datos.correo)}</a>` : ""],
+    ["CURP", escED(a.datos.curp)], ["Nacimiento", a.datos.nacimiento ? fechaLarga(a.datos.nacimiento) : ""],
+    ["Género", escED(a.datos.genero)], ["Escolaridad", escED(a.datos.escolaridad)], ["Puesto", escED(a.datos.puesto)],
     ["Consentimiento", a.consentimiento && a.consentimiento.aceptado ? `Aceptó el aviso de privacidad · ${fechaLarga((a.consentimiento.fecha || "").slice(0, 10))}` : ""],
   ].filter(r => r[1]).map(r => `<div class="d-row"><span class="d-row__k">${r[0]}</span><span class="d-row__v">${r[1]}</span></div>`).join("");
 
@@ -849,7 +849,7 @@ function abrirDetalleObj(a, opts) {
     const r = a.respuestas[q.id]; if (!r) return "";
     const opt = q.opciones[r.optIdx]; const txt = opt ? opt.t : "—";
     const marca = q.opciones.some(o => o.correcta) ? (r.correcta ? `<span class="ok">✓</span>` : `<span class="bad">✕</span>`) : "";
-    return `<div class="ans-item"><div class="ans-q">${q.texto}</div><div class="ans-a">${marca}${txt}</div>${r.porque ? `<div class="ans-why"><span>Porqué:</span> ${r.porque}</div>` : ""}</div>`;
+    return `<div class="ans-item"><div class="ans-q">${q.texto}</div><div class="ans-a">${marca}${txt}</div>${r.porque ? `<div class="ans-why"><span>Porqué:</span> ${escED(r.porque)}</div>` : ""}</div>`;
   }).join("");
   const BANCO_DET = opts.banco || PREGUNTAS;
   const botones = BANCO_DET.filter(q => q.tipo !== "abierta").map(q => {
@@ -860,7 +860,7 @@ function abrirDetalleObj(a, opts) {
       <div class="ans-q">${q.tag || DIMENSIONES[q.dim]} · ${q.texto}</div>
       <div class="ans-a">${marca}${txt}</div>
       ${r.otro && r.otroTexto ? `<div class="ans-otro">Otro: ${r.otroTexto}</div>` : ""}
-      ${r.porque ? `<div class="ans-why"><span>Porqué:</span> ${r.porque}</div>` : ""}
+      ${r.porque ? `<div class="ans-why"><span>Porqué:</span> ${escED(r.porque)}</div>` : ""}
     </div>`;
   }).join("");
 
@@ -924,7 +924,7 @@ function abrirDetalleObj(a, opts) {
       <div class="dec-grid dec-grid--estados">
         ${ORDEN_ESTADOS.map(k => `<button class="dec-btn dec-btn--${ESTADOS[k].cls} ${estadoDe(a) === k ? "is-on" : ""}" data-d="${k}">${ESTADOS[k].t}</button>`).join("")}
       </div>
-      <div class="field" style="margin-top:12px"><label class="field__label">Notas de RH</label><textarea class="input" id="drNotas" rows="3" placeholder="Observaciones…">${a.notas || ""}</textarea></div>`}
+      <div class="field" style="margin-top:12px"><label class="field__label">Notas de RH</label><textarea class="input" id="drNotas" rows="3" placeholder="Observaciones…">${escED(a.notas)}</textarea></div>`}
     </div>`;
 
   $("#drawerOverlay").classList.add("is-on");

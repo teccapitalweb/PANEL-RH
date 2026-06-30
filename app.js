@@ -10,6 +10,7 @@ const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "o
 const fechaLarga = iso => { if (!iso) return ""; const [y, m, d] = iso.split("-").map(Number); return `${d} ${MESES[m - 1]} ${y}`; };
 const esEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const soloDigitos = v => v.replace(/\D/g, "");
+const esc = s => (s == null ? "" : String(s)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /* ---------- Date picker (nacimiento) ---------- */
 const DIAS = ["L", "M", "M", "J", "V", "S", "D"];
@@ -164,13 +165,13 @@ function renderDatos() {
       <div class="k-head"><h2>Cuéntanos de ti</h2><p>Usaremos estos datos solo para contactarte.</p></div>
       <div class="form">
         <div class="form-section">Datos de contacto</div>
-        <div class="field"><label class="field__label">Nombre completo *</label><input class="input" id="fNombre" value="${d.nombre || ""}" placeholder="Tu nombre"></div>
+        <div class="field"><label class="field__label">Nombre completo *</label><input class="input" id="fNombre" value="${esc(d.nombre)}" placeholder="Tu nombre" maxlength="80"></div>
         <div class="form-grid">
-          <div class="field"><label class="field__label">Teléfono *</label><input class="input" id="fTel" inputmode="numeric" value="${d.tel || ""}" placeholder="10 dígitos"></div>
-          <div class="field"><label class="field__label">Correo *</label><input class="input" id="fMail" type="email" value="${d.correo || ""}" placeholder="tu@correo.com"></div>
+          <div class="field"><label class="field__label">Teléfono *</label><input class="input" id="fTel" inputmode="numeric" value="${esc(d.tel)}" placeholder="10 dígitos"></div>
+          <div class="field"><label class="field__label">Correo *</label><input class="input" id="fMail" type="email" value="${esc(d.correo)}" placeholder="tu@correo.com"></div>
         </div>
         <div class="form-grid">
-          <div class="field"><label class="field__label">CURP</label><input class="input" id="fCurp" value="${d.curp || ""}" placeholder="Opcional" maxlength="18" style="text-transform:uppercase"></div>
+          <div class="field"><label class="field__label">CURP</label><input class="input" id="fCurp" value="${esc(d.curp)}" placeholder="Opcional" maxlength="18" style="text-transform:uppercase"></div>
           <div class="field"><label class="field__label">Fecha de nacimiento</label>${datepickHTML("fNac", d.nacimiento, "2000-01")}</div>
         </div>
         <div class="form-section">Perfil</div>
@@ -178,7 +179,7 @@ function renderDatos() {
         <div class="field"><label class="field__label">Escolaridad</label>${chips("escolaridad", ESCOLARIDAD, d.escolaridad)}</div>
         <div class="field"><label class="field__label">Puesto al que aspiras *</label>
           ${chips("puesto", [...PU, "Otro"], PU.includes(d.puesto) ? d.puesto : (d.puesto ? "Otro" : ""))}
-          <input class="input" id="puestoOtro" placeholder="¿Cuál puesto?" value="${(!PU.includes(d.puesto) && d.puesto) ? d.puesto : ""}" ${(!PU.includes(d.puesto) && d.puesto) ? "" : "hidden"} style="margin-top:9px"></div>
+          <input class="input" id="puestoOtro" placeholder="¿Cuál puesto?" value="${esc((!PU.includes(d.puesto) && d.puesto) ? d.puesto : "")}" ${(!PU.includes(d.puesto) && d.puesto) ? "" : "hidden"} style="margin-top:9px"></div>
         <p class="form-error" id="dErr"></p>
       </div>
       <div class="k-actions">
@@ -197,7 +198,7 @@ function renderDatos() {
     const nombre = $("#fNombre").value.trim(), tel = soloDigitos($("#fTel").value), correo = $("#fMail").value.trim();
     let puesto = get("puesto");
     if (!nombre) return err("Escribe tu nombre completo.");
-    if (tel.length < 10) return err("El teléfono debe tener 10 dígitos.");
+    if (tel.length !== 10) return err("El teléfono debe tener exactamente 10 dígitos.");
     if (!esEmail(correo)) return err("Escribe un correo válido.");
     if (!puesto) return err("Elige el puesto al que aspiras.");
     if (puesto === "Otro") { const po = $("#puestoOtro").value.trim(); if (!po) return err("Escribe el puesto al que aspiras."); puesto = po; }
@@ -752,7 +753,13 @@ function guardarAspirante() {
   Object.assign(resultado, calcularConfianza(state.respuestas));
   const invTok = window.__INV ? window.__INV.token : null;
   const registro = { id: "asp" + Date.now(), fecha: new Date().toISOString(), datos: state.datos, respuestas: state.respuestas, atencion: state.atencion, resultado, consentimiento: { aceptado: true, fecha: new Date().toISOString(), version: CONFIG.avisoVersion, responsable: CONFIG.avisoResponsable }, invitacion: invTok };
-  window.Store.guardarAspirante(registro).catch(function (e) { console.warn("No se pudo guardar el aspirante:", e && e.message); });
+  const intento = function () { return window.Store.guardarAspirante(registro); };
+  intento().catch(function () { return new Promise(function (r) { setTimeout(r, 1500); }).then(intento); })
+    .catch(function (e) {
+      console.warn("No se pudo guardar el aspirante:", e && e.message);
+      var av = document.getElementById("finWarn");
+      if (av) av.hidden = false;
+    });
   if (invTok) window.Store.completarInvitacion(invTok, registro.id).catch(function () {});
   limpiarProgreso();
   return registro;
@@ -768,6 +775,7 @@ function renderFin() {
         <div class="done-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
         <h1 class="welcome__title">${CONFIG.mensajeFinTitulo}</h1>
         <p class="welcome__sub">${CONFIG.mensajeFinCuerpo}</p>
+        <p class="form-error" id="finWarn" hidden>No pudimos enviar tus respuestas. Por favor avísale a quien aplica el examen antes de cerrar.</p>
       </div>
     </div>`;
   // Popup de confirmación
@@ -796,14 +804,6 @@ function applyTheme(t) {
   $("#iconMoon").style.display = t === "dark" ? "none" : "block";
   $("#iconSun").style.display = t === "dark" ? "block" : "none";
   try { localStorage.setItem("examenrh-theme", t); } catch (e) {}
-}
-
-/* ---------- Acceso de RH (contraseña → panel) ---------- */
-function abrirAccesoRH() {
-  // (Retirada) El acceso ahora es por una sola puerta: el botón del candado lleva
-  // directo a panel.html, que maneja el login (contraseña en demo, o cuenta de
-  // Firebase cuando está conectado). Se deja el nombre por compatibilidad.
-  window.location.href = "panel.html";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
