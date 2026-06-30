@@ -799,27 +799,10 @@ function applyTheme(t) {
 
 /* ---------- Acceso de RH (contraseña → panel) ---------- */
 function abrirAccesoRH() {
-  const ov = document.createElement("div"); ov.className = "modal-overlay";
-  ov.innerHTML = `<div class="modal modal--pw" role="dialog" aria-modal="true">
-    <div class="modal__icon" style="background:var(--accent-soft);color:var(--accent)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-    <h3>${(window.__MARCA && window.__MARCA.acceso) || "Tec Capital Group"}</h3>
-    <p>Acceso de Recursos Humanos. Escribe la contraseña para ver el panel.</p>
-    <label class="field__label" for="rhPw" style="text-align:left;display:block">Contraseña</label>
-    <input class="input" id="rhPw" type="password" placeholder="••••••••" autocomplete="off">
-    <div class="pw-error" id="rhErr"></div>
-    <div class="pw-actions"><button class="btn btn--ghost" id="rhCancel">Cancelar</button><button class="btn btn--primary" id="rhEntrar">Entrar</button></div>
-  </div>`;
-  document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
-  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
-  const intentar = () => {
-    if ($("#rhPw", ov).value === RH_PASS) { try { sessionStorage.setItem("examenrh_rh_ok", "1"); } catch (e) {} window.location.href = "panel.html"; }
-    else { $("#rhErr", ov).textContent = "Contraseña incorrecta."; $("#rhPw", ov).value = ""; $("#rhPw", ov).focus(); }
-  };
-  $("#rhCancel", ov).addEventListener("click", close);
-  ov.addEventListener("click", e => { if (e.target === ov) close(); });
-  $("#rhEntrar", ov).addEventListener("click", intentar);
-  $("#rhPw", ov).addEventListener("keydown", e => { if (e.key === "Enter") intentar(); });
-  setTimeout(() => { const i = $("#rhPw", ov); if (i) i.focus(); }, 60);
+  // (Retirada) El acceso ahora es por una sola puerta: el botón del candado lleva
+  // directo a panel.html, que maneja el login (contraseña en demo, o cuenta de
+  // Firebase cuando está conectado). Se deja el nombre por compatibilidad.
+  window.location.href = "panel.html";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -844,7 +827,7 @@ document.addEventListener("DOMContentLoaded", () => {
   _cargar("leerPreguntas", function (lista) { if (Array.isArray(lista) && lista.length) window.__PREGUNTAS_REMOTAS = lista; });
   _cargar("leerPreguntasFases", function (lista) { if (Array.isArray(lista) && lista.length) window.__PREGUNTAS_FASES_REMOTAS = lista; });
   const _th = $("#themeBtn"); if (_th) _th.addEventListener("click", () => applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"));
-  const _rh = $("#rhAccess"); if (_rh) _rh.addEventListener("click", function () { if (window.FIREBASE_ON) { window.location.href = "panel.html"; } else { abrirAccesoRH(); } });
+  const _rh = $("#rhAccess"); if (_rh) _rh.addEventListener("click", function () { window.location.href = "panel.html"; });
   document.addEventListener("click", () => $$(".datepick").forEach(d => d.classList.remove("is-open")));
   window.addEventListener("beforeunload", guardarProgreso);
   arrancar(parseInv());
