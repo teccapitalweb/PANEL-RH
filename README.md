@@ -14,8 +14,8 @@ el resto del código.
   configuración del mensaje final y de los puestos.
 
 ## Acceso al panel
-Botón discreto "Tec Capital Group" abajo a la izquierda del kiosko.
-- **Modo demo**: pide la contraseña `RH_PASS` (en `data.js`, default `teccapital2026`).
+Botón discreto de acceso (muestra el nombre de la empresa) abajo a la izquierda del kiosko.
+- **Modo demo**: pide la contraseña `RH_PASS` (en `data.js`, default `evalua2026`).
 - **Modo Firebase**: lleva al panel, que pide **correo + contraseña** (cuenta real).
 
 ## Archivos

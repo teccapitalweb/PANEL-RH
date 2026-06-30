@@ -21,7 +21,7 @@ const CONFIG = {
 /* Contraseña de acceso al panel de RH — CÁMBIALA aquí.
    Nota: es una protección ligera (visible en el código). La seguridad real
    vendrá con Firebase Auth; esto solo evita que un aspirante entre por error. */
-const RH_PASS = "teccapital2026";
+const RH_PASS = "evalua2026";
 
 /* Catálogos para la captura de datos (estilo botón, mínimo tecleo) */
 const PUESTOS = ["Atención a cliente", "Cajero(a)", "Ventas", "Almacén", "Administrativo", "Cocina / Producción"];

@@ -30,7 +30,7 @@ Sube los archivos como siempre. Listo.
 
 ## Cómo se comporta ya conectado
 - **Kiosko**: el aspirante hace el examen y su registro se guarda en
-  `empresas/{EMPRESA_ID}/aspirantes`. El botón "Tec Capital Group" lleva al panel.
+  `empresas/{EMPRESA_ID}/aspirantes`. El botón de acceso lleva al panel.
 - **Panel**: RH entra con **correo + contraseña** (Firebase Auth), ve los
   aspirantes reales, califica, y edita el mensaje final y los puestos
   (se guardan en `empresas/{EMPRESA_ID}/config/evaluacion`, que el kiosko lee).
