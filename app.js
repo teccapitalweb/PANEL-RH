@@ -96,6 +96,7 @@ function aplicarColor(hex) {
 function aplicarMarca(m) {
   if (!m) return;
   window.__MARCA = m;
+  try { document.title = m.nombre ? ("Evaluación de ingreso · " + m.nombre) : "Evaluación de ingreso"; } catch (e) {}
   if (m.color) aplicarColor(m.color);
   const b = document.getElementById("kioskBrand");
   if (b) {
@@ -103,7 +104,7 @@ function aplicarMarca(m) {
     b.innerHTML = ic + " " + (m.nombre || "Evalua RH");
   }
   const rl = document.getElementById("rhAccessLabel");
-  if (rl && m.acceso) rl.textContent = m.acceso;
+  if (rl) rl.textContent = m.acceso || m.nombre || "Acceso RH";
 }
 function renderBienvenida() {
   setProgreso(0, "");
@@ -129,7 +130,7 @@ function renderBienvenida() {
 }
 
 function textoAviso() {
-  const r = CONFIG.avisoResponsable || CONFIG.empresa, c = CONFIG.avisoContacto || "";
+  const r = CONFIG.avisoResponsable || (window.__MARCA && window.__MARCA.nombre) || CONFIG.empresa, c = CONFIG.avisoContacto || "";
   return `
     <p><strong>Responsable.</strong> ${r} es responsable del tratamiento de tus datos personales, conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP).</p>
     <p><strong>Datos que recabamos.</strong> Nombre, teléfono, correo, CURP, fecha de nacimiento, género, escolaridad, puesto de interés y tus respuestas a esta evaluación.</p>

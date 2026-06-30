@@ -10,11 +10,11 @@
 /* Texto del popup final — EDITABLE por RH desde su panel */
 const CONFIG = {
   titulo: "Evaluación de ingreso",
-  empresa: "TEC CAPITAL",
+  empresa: "Evalua RH",
   mensajeFinTitulo: "¡Listo! Concluiste tu evaluación",
   mensajeFinCuerpo: "Gracias por tu tiempo. El área de Recursos Humanos revisará tus respuestas y te contactará en un plazo de 2 a 3 días hábiles.",
-  avisoResponsable: "TEC CAPITAL Group",
-  avisoContacto: "privacidad@teccapital.com",
+  avisoResponsable: "",
+  avisoContacto: "",
   avisoVersion: "1.0",
 };
 

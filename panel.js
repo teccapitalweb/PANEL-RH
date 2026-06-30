@@ -24,6 +24,8 @@ function aplicarColor(hex) {
 function aplicarMarcaPanel(m) {
   if (!m) return;
   MARCA = m;
+  try { document.title = m.nombre ? ("Panel de Selección · " + m.nombre) : "Panel de Selección"; } catch (e) {}
+  var lb = document.getElementById("loginBrand"); if (lb) lb.textContent = m.nombre || "Panel de Selección";
   if (m.color) aplicarColor(m.color);
   var b = document.getElementById("appBrand");
   if (b) {
@@ -514,7 +516,7 @@ function exportarComparadorPDF(sel) {
     rowTxt("Reacción", reacVals, v => v == null ? "—" : v + " ms"),
     rowTxt("Estado", estVals),
   ].join("");
-  const resp = CONFIG.avisoResponsable || CONFIG.empresa;
+  const resp = CONFIG.avisoResponsable || MARCA.nombre || CONFIG.empresa;
   const hoy = fechaLarga(new Date().toISOString());
 
   const prev = document.getElementById("printRoot"); if (prev) prev.remove();
@@ -776,7 +778,7 @@ function exportarReportePDF(a) {
   if (cf.control) confLineas.push(`<div class="pr-row"><span>Control de atención</span><span>${cf.control.fallidas === 0 ? "Aprobado" : cf.control.fallidas + " fallida(s)"}</span></div>`);
   if (cf.consistencia) confLineas.push(`<div class="pr-row"><span>Consistencia</span><span>${pct100(cf.consistencia.pct)}% (${cf.consistencia.consistentes}/${cf.consistencia.pares})</span></div>`);
   const confPR = confLineas.length ? `<div class="pr-sec">Confianza en la respuesta</div><div class="pr-rows">${confLineas.join("")}</div>` : "";
-  const resp = CONFIG.avisoResponsable || CONFIG.empresa;
+  const resp = CONFIG.avisoResponsable || MARCA.nombre || CONFIG.empresa;
   const contacto = [a.datos.tel, a.datos.correo, a.datos.curp].filter(Boolean).join("&nbsp;&nbsp;·&nbsp;&nbsp;");
   const consent = a.consentimiento && a.consentimiento.aceptado
     ? `Aceptó el aviso de privacidad el ${fechaLarga((a.consentimiento.fecha || "").slice(0, 10))}`
@@ -1000,7 +1002,7 @@ function _abrirConfigUI(c, pl) {
 
       <div class="sec-title">Aviso de privacidad</div>
       <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Responsable y correo para derechos ARCO. Aparecen en el aviso que el aspirante acepta antes de empezar.</p>
-      <div class="field"><label class="field__label">Responsable (empresa)</label><input class="input" id="cfgResp" value="${(c.avisoResp || "").replace(/"/g, "&quot;")}"></div>
+      <div class="field"><label class="field__label">Responsable del aviso de privacidad</label><input class="input" id="cfgResp" value="${(c.avisoResp || "").replace(/"/g, "&quot;")}" placeholder="Nombre de la empresa"><p class="ed-hint">Si lo dejas vacío, el aviso usa el nombre de la empresa.</p></div>
       <div class="field"><label class="field__label">Correo de contacto (ARCO)</label><input class="input" id="cfgCont" type="email" value="${(c.avisoCont || "").replace(/"/g, "&quot;")}"></div>
 
       <div class="sec-title">Umbrales de calificación</div>
@@ -1014,7 +1016,7 @@ function _abrirConfigUI(c, pl) {
       <div class="sec-title">Marca (white-label)</div>
       <p style="color:var(--muted);font-size:.84rem;margin-bottom:12px">Pon el logo y el color de la empresa. Se aplican al examen del aspirante y a este panel.</p>
       <div class="field"><label class="field__label">Nombre de la empresa</label><input class="input" id="cfgMarcaNom" value="${(c.marca.nombre || "").replace(/"/g, "&quot;")}" placeholder="Ej. Grupo Acme"></div>
-      <div class="field"><label class="field__label">Texto del botón de acceso (kiosko)</label><input class="input" id="cfgMarcaAcceso" value="${(c.marca.acceso || "").replace(/"/g, "&quot;")}" placeholder="Ej. Tec Capital Group"><p class="ed-hint">El botón con candado abajo del examen, por donde RH entra al panel. Si lo dejas vacío, se queda “Tec Capital Group”.</p></div>
+      <div class="field"><label class="field__label">Texto del botón de acceso (kiosko)</label><input class="input" id="cfgMarcaAcceso" value="${(c.marca.acceso || "").replace(/"/g, "&quot;")}" placeholder="Ej. el nombre de tu empresa"><p class="ed-hint">El botón con candado abajo del examen, por donde RH entra al panel. Si lo dejas vacío, se usa el nombre de la empresa.</p></div>
       <div class="field"><label class="field__label">Color de marca</label><div class="marca-color"><input type="color" id="cfgMarcaColor" value="${c.marca.color || "#4B4FE6"}"><span class="marca-hex" id="cfgMarcaHex">${c.marca.color || "#4B4FE6"}</span></div></div>
       <div class="field"><label class="field__label">Logo</label>
         <div class="marca-logo">
@@ -1355,6 +1357,7 @@ function bootApp() { $("#login").style.display = "none"; $("#app").classList.add
 
 document.addEventListener("DOMContentLoaded", () => {
   try { applyTheme(localStorage.getItem("examenrh-theme") || "light"); } catch (e) { applyTheme("light"); }
+  try { window.Store.leerConfig().then(function (cfg) { if (cfg && cfg.marca) aplicarMarcaPanel(cfg.marca); }).catch(function () {}); } catch (e) {}
   const FON = !!window.FIREBASE_ON;
   let entrar;
   if (FON) {
