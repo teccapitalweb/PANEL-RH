@@ -357,7 +357,7 @@ function _renderAppUI() {
     <div class="page-head">
       <h1>Aspirantes</h1>
       <p>Resultados de la evaluación de ingreso. Toca un aspirante para ver su detalle.</p>
-      ${state.demo ? `<div class="demo-note"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Datos de ejemplo · cuando conectes el kiosko aparecerán aquí los aspirantes reales</div>` : ""}
+      ${state.demo ? `<div class="demo-note"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Datos de ejemplo · cuando conectes el kiosko aparecerán aquí los aspirantes reales</div><button class="btn btn--sm" id="btnNube" style="margin-top:10px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>Conectar a la nube (Firebase)</button>` : ""}
     </div>
     <div class="dash" id="dash"></div>
     <div class="pipeline" id="pipeline"></div>
@@ -378,6 +378,7 @@ function _renderAppUI() {
       <thead><tr><th class="col-chk"></th><th>#</th><th>Aspirante</th><th>Puesto</th><th>Fecha</th><th>Puntaje</th><th>Estado · señales</th></tr></thead>
       <tbody id="filas"></tbody></table></div></div>`;
   $("#q").addEventListener("input", e => { state.busqueda = e.target.value; pintarFilas(); });
+  var _bn = $("#btnNube"); if (_bn) _bn.addEventListener("click", abrirAsistenteNube);
   $("#fPuesto").addEventListener("change", e => { state.puesto = e.target.value; pintarFilas(); });
   $("#fOrden").addEventListener("change", e => { state.orden = e.target.value; pintarFilas(); });
   $("#cmpBtn").addEventListener("click", () => abrirComparador(state.comparar.slice()));
@@ -951,6 +952,165 @@ function puestosActuales() {
   return PUESTOS;
 }
 
+/* ---------- Asistente: Conectar a la nube (Firebase) ---------- */
+function parseFbConfig(txt) {
+  var campos = ["apiKey", "authDomain", "projectId", "storageBucket", "messagingSenderId", "appId"];
+  var out = {};
+  campos.forEach(function (k) {
+    var m = txt.match(new RegExp(k + "\\s*:\\s*[\"']([^\"']+)[\"']"));
+    if (m) out[k] = m[1].trim();
+  });
+  // Si pegaron solo lo esencial, derivamos los dominios del projectId
+  if (out.projectId) {
+    if (!out.authDomain) out.authDomain = out.projectId + ".firebaseapp.com";
+    if (!out.storageBucket) out.storageBucket = out.projectId + ".appspot.com";
+  }
+  return out;
+}
+function fbConfigValida(c) { return !!(c && c.apiKey && c.projectId && c.appId); }
+function genFbArchivo(cfg) {
+  return '/* =====================================================================\n'
+    + '   firebase-config.js \u2014 Evalua RH (generado por el asistente)\n'
+    + '   ===================================================================== */\n'
+    + 'var firebaseConfig = {\n'
+    + '  apiKey: "' + cfg.apiKey + '",\n'
+    + '  authDomain: "' + cfg.authDomain + '",\n'
+    + '  projectId: "' + cfg.projectId + '",\n'
+    + '  storageBucket: "' + cfg.storageBucket + '",\n'
+    + '  messagingSenderId: "' + (cfg.messagingSenderId || "") + '",\n'
+    + '  appId: "' + cfg.appId + '",\n'
+    + '};\n'
+    + 'try {\n'
+    + '  var _fbSaved = JSON.parse(localStorage.getItem("examenrh_fbconfig") || "null");\n'
+    + '  if (_fbSaved && _fbSaved.apiKey && _fbSaved.apiKey !== "TODO") firebaseConfig = _fbSaved;\n'
+    + '} catch (e) {}\n'
+    + 'const EMPRESA_ID = "default";\n'
+    + 'const AI_ENDPOINT = "";\n'
+    + '(function () {\n'
+    + '  var on = false, db = null, auth = null;\n'
+    + '  var real = firebaseConfig.apiKey && firebaseConfig.apiKey !== "TODO";\n'
+    + '  if (real && typeof firebase !== "undefined") {\n'
+    + '    try { firebase.initializeApp(firebaseConfig); db = firebase.firestore(); auth = firebase.auth(); on = true; }\n'
+    + '    catch (e) { console.warn("Firebase no inici\u00f3; modo demo:", e && e.message); }\n'
+    + '  }\n'
+    + '  if (typeof window !== "undefined") { window.db = db; window.auth = auth; window.FIREBASE_ON = on; window.EMPRESA_ID = EMPRESA_ID; window.AI_ENDPOINT = AI_ENDPOINT; }\n'
+    + '})();\n';
+}
+function descargarTexto(nombre, contenido) {
+  var blob = new Blob([contenido], { type: "text/javascript;charset=utf-8" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a"); a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+}
+function genFbReglas() {
+  return `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /empresas/{empresaId} {
+      match /aspirantes/{aspiranteId} {
+        allow create: if true;
+        allow read, update: if request.auth != null;
+        allow delete: if false;
+      }
+      match /config/{docId} {
+        allow read: if true;
+        allow write: if request.auth != null;
+      }
+      match /invitaciones/{token} {
+        allow read, update: if true;
+        allow create, delete: if request.auth != null;
+      }
+      match /candidatosFases/{token} {
+        allow read, create, update: if true;
+        allow delete: if request.auth != null;
+      }
+    }
+  }
+}`;
+}
+function abrirAsistenteNube() {
+  var conectado = !!window.FIREBASE_ON;
+  var X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+  var pasoCSS = "display:flex;gap:10px;align-items:flex-start;margin-bottom:12px";
+  var numCSS = "flex:0 0 24px;width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.82rem;font-weight:600";
+  const ov = document.createElement("div"); ov.className = "modal-overlay";
+  ov.innerHTML = `<div class="modal">
+    <div class="modal__head"><h3>Conectar a la nube (Firebase)</h3><button class="icon-btn" data-x>${X}</button></div>
+    <div class="modal__body">
+      ${conectado
+      ? `<div style="background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.4);color:var(--ok,#16a34a);padding:11px 13px;border-radius:10px;font-size:.86rem;margin-bottom:16px">✓ Conectado a la nube. Los datos se guardan en Firebase y se ven desde cualquier dispositivo.</div>`
+      : `<p style="color:var(--muted);font-size:.86rem;margin-bottom:16px">Ahora estás en <b>modo demo</b>: los datos se guardan solo en este equipo. Conecta tu proyecto de Firebase para guardarlos en la nube y verlos desde donde sea.</p>`}
+
+      <div class="sec-title" style="margin-top:0">1 · Crea tu proyecto (una sola vez)</div>
+      <div style="${pasoCSS}"><span style="${numCSS}">a</span><div style="font-size:.85rem;color:var(--muted)">Entra a <b>console.firebase.google.com</b> y crea un proyecto nuevo (o usa uno que ya tengas).</div></div>
+      <div style="${pasoCSS}"><span style="${numCSS}">b</span><div style="font-size:.85rem;color:var(--muted)">Activa <b>Firestore Database</b> (modo Producción) y <b>Authentication → Email/Password</b>.</div></div>
+      <div style="${pasoCSS}"><span style="${numCSS}">c</span><div style="font-size:.85rem;color:var(--muted)">En Authentication, crea un usuario (correo y contraseña) para que tu equipo de RH entre al panel.</div></div>
+
+      <div class="sec-title">2 · Copia la configuración</div>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px">En Firebase: <b>⚙ Configuración del proyecto → Tus apps → Web (&lt;/&gt;)</b>. Copia el bloque <code>firebaseConfig</code> que te muestra y pégalo aquí abajo.</p>
+
+      <div class="sec-title">3 · Pégala aquí</div>
+      <textarea class="input" id="fbPaste" rows="7" placeholder='const firebaseConfig = {
+  apiKey: "AIza...",
+  authDomain: "tu-proyecto.firebaseapp.com",
+  projectId: "tu-proyecto",
+  storageBucket: "tu-proyecto.appspot.com",
+  messagingSenderId: "1234567890",
+  appId: "1:1234:web:abcd"
+};' style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.8rem;line-height:1.5;resize:vertical"></textarea>
+      <p class="ed-hint" id="fbMsg" style="min-height:16px"></p>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn--primary" id="fbConectar">Conectar en este equipo</button>
+        <button class="btn btn--sm" id="fbDescargar">Descargar archivo (para todas las tablets)</button>
+        ${conectado ? `<button class="btn btn--sm" id="fbDesconectar" style="margin-left:auto">Volver a modo demo</button>` : ""}
+      </div>
+
+      <div style="background:var(--card-2,rgba(0,0,0,.03));border-radius:10px;padding:12px 14px;margin-top:16px;font-size:.82rem;color:var(--muted);line-height:1.6">
+        <b style="color:var(--text)">¿Cuál uso?</b><br>
+        · <b>Conectar en este equipo</b>: queda guardado en este navegador. Ideal para probar que tus llaves funcionan, o si usas una sola tablet.<br>
+        · <b>Descargar archivo</b>: te da el <code>firebase-config.js</code> ya lleno. Súbelo a GitHub (reemplaza el que está) y entonces <b>todas</b> las tablets y el panel quedan conectados.
+      </div>
+
+      <div class="sec-title">4 · Publica las reglas de seguridad</div>
+      <p style="color:var(--muted);font-size:.85rem;margin-bottom:10px">En Firebase: <b>Firestore Database → Reglas</b>. Borra lo que haya, pega esto y dale <b>Publicar</b>. <b style="color:var(--text)">Sin este paso, Firestore bloquea todo y no se guarda nada.</b></p>
+      <textarea class="input" id="fbRules" rows="8" readonly style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.75rem;line-height:1.5;resize:vertical">${genFbReglas()}</textarea>
+      <button class="btn btn--sm" id="fbCopiarReglas" style="margin-top:8px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copiar reglas</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
+  const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
+  $("[data-x]", ov).forEach(b => b.addEventListener("click", close));
+  const msg = (t, ok) => { var e = $("#fbMsg", ov); e.textContent = t; e.style.color = ok ? "var(--ok,#16a34a)" : "var(--bad,#dc2626)"; };
+
+  $("#fbConectar", ov).addEventListener("click", function () {
+    var cfg = parseFbConfig($("#fbPaste", ov).value);
+    if (!fbConfigValida(cfg)) { msg("No encontré las llaves. Pega el bloque completo que te da Firebase (debe incluir apiKey, projectId y appId).", false); return; }
+    try { localStorage.setItem("examenrh_fbconfig", JSON.stringify(cfg)); } catch (e) {}
+    msg("✓ Guardado. Recargando para conectar…", true);
+    setTimeout(function () { location.reload(); }, 700);
+  });
+  $("#fbDescargar", ov).addEventListener("click", function () {
+    var cfg = parseFbConfig($("#fbPaste", ov).value);
+    if (!fbConfigValida(cfg)) { msg("Primero pega el bloque completo de Firebase para poder generar el archivo.", false); return; }
+    descargarTexto("firebase-config.js", genFbArchivo(cfg));
+    msg("✓ Archivo descargado. Súbelo a GitHub reemplazando el firebase-config.js actual.", true);
+  });
+  var des = $("#fbDesconectar", ov);
+  if (des) des.addEventListener("click", function () {
+    try { localStorage.removeItem("examenrh_fbconfig"); } catch (e) {}
+    msg("Volviendo a modo demo…", true);
+    setTimeout(function () { location.reload(); }, 600);
+  });
+  var cpr = $("#fbCopiarReglas", ov);
+  if (cpr) cpr.addEventListener("click", function () {
+    var ta = $("#fbRules", ov); ta.focus(); ta.select();
+    try { navigator.clipboard.writeText(ta.value); } catch (e) { try { document.execCommand("copy"); } catch (e2) {} }
+    msg("✓ Reglas copiadas. Pégalas en Firestore → Reglas y publica.", true);
+  });
+}
+
 function abrirConfig() {
   window.Store.leerConfig().then(function (cfg) {
     var c = {
@@ -1027,6 +1187,9 @@ function _abrirConfigUI(c, pl) {
         </div>
         <p class="ed-hint">PNG, JPG o SVG, máximo 200 KB. Se ve mejor horizontal.</p>
       </div>
+      <div class="sec-title">Conexión a la nube</div>
+      <p style="color:var(--muted);font-size:.84rem;margin-bottom:10px">Conecta tu proyecto de Firebase para guardar los datos en la nube y verlos desde cualquier dispositivo. Sin esto, todo se guarda solo en este equipo (modo demo).</p>
+      <button type="button" class="btn btn--sm" id="cfgNube"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>${window.FIREBASE_ON ? "Administrar conexión" : "Conectar a la nube (Firebase)"}</button>
       <p class="cfg-error" id="cfgErr"></p>
     </div>
     <div class="modal__foot"><button class="btn btn--ghost" data-x>Cancelar</button><button class="btn btn--primary" id="cfgSave">Guardar</button></div>
@@ -1052,6 +1215,7 @@ function _abrirConfigUI(c, pl) {
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
   var _eq = $("#cfgEditQ", ov); if (_eq) _eq.addEventListener("click", abrirEditorPreguntas);
   var _eqf = $("#cfgEditQF", ov); if (_eqf) _eqf.addEventListener("click", abrirEditorPreguntasFases);
+  var _cn = $("#cfgNube", ov); if (_cn) _cn.addEventListener("click", function () { close(); abrirAsistenteNube(); });
 
   var modoSel = c.modo || "rapida";
   $$("#cfgModo .modo-opt", ov).forEach(b => b.addEventListener("click", () => {

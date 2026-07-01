@@ -6,7 +6,7 @@
    la app corre en MODO DEMO (localStorage) y nada se rompe.
    El kiosko y el panel comparten el MISMO proyecto.
    ===================================================================== */
-const firebaseConfig = {
+var firebaseConfig = {
   apiKey: "TODO",
   authDomain: "TODO.firebaseapp.com",
   projectId: "TODO",
@@ -14,6 +14,15 @@ const firebaseConfig = {
   messagingSenderId: "TODO",
   appId: "TODO",
 };
+
+/* El asistente "Conectar a la nube" del panel puede guardar aquí la configuración
+   sin que tengas que editar este archivo (queda en este navegador). Para que
+   funcione en TODAS las tablets, el asistente también te genera este archivo ya
+   lleno para subirlo a GitHub. */
+try {
+  var _fbSaved = JSON.parse(localStorage.getItem("examenrh_fbconfig") || "null");
+  if (_fbSaved && _fbSaved.apiKey && _fbSaved.apiKey !== "TODO") firebaseConfig = _fbSaved;
+} catch (e) {}
 
 /* ID del espacio de la empresa (tenant). Para una sola empresa déjalo así.
    Si luego sirves a varias, usa un ID distinto por cliente. */
