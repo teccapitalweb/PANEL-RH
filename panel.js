@@ -1081,7 +1081,7 @@ function abrirAsistenteNube() {
   </div>`;
   document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add("is-on"));
   const close = () => { ov.classList.remove("is-on"); setTimeout(() => ov.remove(), 220); };
-  $("[data-x]", ov).forEach(b => b.addEventListener("click", close));
+  $$("[data-x]", ov).forEach(b => b.addEventListener("click", close));
   const msg = (t, ok) => { var e = $("#fbMsg", ov); e.textContent = t; e.style.color = ok ? "var(--ok,#16a34a)" : "var(--bad,#dc2626)"; };
 
   $("#fbConectar", ov).addEventListener("click", function () {
